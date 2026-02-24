@@ -1,0 +1,90 @@
+{
+  "source": "dgs_ecatalog",
+  "sections": [
+    {
+      "section": "A",
+      "startPage": 14,
+      "endPage": 176
+    },
+    {
+      "section": "B",
+      "startPage": 178,
+      "endPage": 229
+    },
+    {
+      "section": "C",
+      "startPage": 232,
+      "endPage": 252
+    },
+    {
+      "section": "D",
+      "startPage": 254,
+      "endPage": 307
+    },
+    {
+      "section": "E",
+      "startPage": 310,
+      "endPage": 600
+    },
+    {
+      "section": "F",
+      "startPage": 602,
+      "endPage": 627
+    }
+  ],
+  "files": {
+    "pagesJsonlPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\data\\catalog\\catalog_A_F_pages.jsonl",
+    "chunksJsonlPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\data\\catalog\\catalog_A_F_chunks.jsonl",
+    "chunksCsvPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\data\\catalog\\catalog_A_F_chunks.csv",
+    "chunksJsonPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\public\\knowledge\\catalog_A_F_chunks.json"
+  },
+  "stats": {
+    "totalPagesExtracted": 607,
+    "totalChunksExtracted": 2061,
+    "sectionStats": [
+      {
+        "section": "A",
+        "startPage": 14,
+        "endPage": 176,
+        "pagesExtracted": 163,
+        "chunksExtracted": 610
+      },
+      {
+        "section": "B",
+        "startPage": 178,
+        "endPage": 229,
+        "pagesExtracted": 52,
+        "chunksExtracted": 209
+      },
+      {
+        "section": "C",
+        "startPage": 232,
+        "endPage": 252,
+        "pagesExtracted": 21,
+        "chunksExtracted": 64
+      },
+      {
+        "section": "D",
+        "startPage": 254,
+        "endPage": 307,
+        "pagesExtracted": 54,
+        "chunksExtracted": 181
+      },
+      {
+        "section": "E",
+        "startPage": 310,
+        "endPage": 600,
+        "pagesExtracted": 291,
+        "chunksExtracted": 921
+      },
+      {
+        "section": "F",
+        "startPage": 602,
+        "endPage": 627,
+        "pagesExtracted": 26,
+        "chunksExtracted": 76
+      }
+    ]
+  },
+  "extractedAt": "2026-02-24T05:58:00.848Z"
+}

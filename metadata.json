@@ -1,0 +1,5 @@
+{
+  "name": "Engineer Reply Polisher",
+  "description": "A professional tool for engineers to convert technical answers into polite customer service responses using Gemini AI.",
+  "requestFramePermissions": []
+}

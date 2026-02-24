@@ -1,0 +1,19 @@
+{
+  "source": "dgs_ecatalog",
+  "range": {
+    "startPage": 310,
+    "endPage": 600
+  },
+  "files": {
+    "pagesJsonlPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\data\\catalog\\catalog_p310_p600_pages.jsonl",
+    "chunksJsonlPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\data\\catalog\\catalog_p310_p600_chunks.jsonl",
+    "chunksCsvPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\data\\catalog\\catalog_p310_p600_chunks.csv",
+    "chunksJsonPath": "C:\\Users\\Abby-NB\\Desktop\\DGS_ToneFix-main\\public\\knowledge\\catalog_p310_p600_chunks.json"
+  },
+  "stats": {
+    "totalPagesRequested": 291,
+    "pagesExtracted": 291,
+    "chunksExtracted": 921
+  },
+  "extractedAt": "2026-02-24T04:07:00.237Z"
+}

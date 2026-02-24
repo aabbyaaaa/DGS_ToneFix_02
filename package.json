@@ -1,0 +1,33 @@
+{
+  "name": "dogger-polisher",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval:retrieval": "node scripts/evalRetrieval.mjs",
+    "extract:catalog": "node scripts/extractCatalogPages.mjs --start 178 --end 229 --section B",
+    "extract:catalog:a": "node scripts/extractCatalogPages.mjs --start 14 --end 176 --section A",
+    "extract:catalog:c": "node scripts/extractCatalogPages.mjs --start 232 --end 252 --section C",
+    "extract:catalog:d": "node scripts/extractCatalogPages.mjs --start 254 --end 307 --section D",
+    "extract:catalog:f": "node scripts/extractCatalogPages.mjs --start 602 --end 627 --section F",
+    "merge:catalog:af": "node scripts/mergeCatalogSections.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.564.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.0",
+    "vitest": "^2.1.8"
+  }
+}
