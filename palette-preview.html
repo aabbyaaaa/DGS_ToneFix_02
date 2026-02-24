@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dark Mode 配色預覽</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --card: #1a1d23;
+        --card-2: #232831;
+        --border: #353d49;
+        --text: #f3f4f6;
+        --muted: #9ca3af;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Noto Sans TC", "Segoe UI", sans-serif;
+        background: radial-gradient(circle at 15% -20%, #2a3040 0%, transparent 55%), var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 24px;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .grid {
+        margin-top: 20px;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 14px;
+        padding: 14px;
+      }
+
+      .title {
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+
+      .swatches {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .swatch {
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        padding: 8px;
+        background: var(--card-2);
+        font-size: 12px;
+      }
+
+      .bar {
+        height: 16px;
+        border-radius: 6px;
+        margin-bottom: 6px;
+      }
+
+      .sample {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .btn {
+        border: none;
+        color: #111827;
+        font-weight: 700;
+        padding: 8px 12px;
+        border-radius: 8px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 12px;
+        border: 1px solid;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Dark Mode 替代色預覽</h1>
+      <p>你可先看哪組最順眼，再套進專案 token。</p>
+
+      <div class="grid">
+        <div class="card">
+          <div class="title">暖銅棕</div>
+          <div class="swatches">
+            <div class="swatch"><div class="bar" style="background:#C98B57"></div>Primary #C98B57</div>
+            <div class="swatch"><div class="bar" style="background:#B97A45"></div>Hover #B97A45</div>
+            <div class="swatch"><div class="bar" style="background:rgba(201,139,87,.16)"></div>Soft rgba(...,.16)</div>
+            <div class="swatch"><div class="bar" style="background:rgba(201,139,87,.36)"></div>Border rgba(...,.36)</div>
+          </div>
+          <div class="sample">
+            <button class="btn" style="background:#C98B57">開始轉換</button>
+            <span class="badge" style="color:#C98B57;border-color:rgba(201,139,87,.36);background:rgba(201,139,87,.16)">MVP</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="title">香檳金</div>
+          <div class="swatches">
+            <div class="swatch"><div class="bar" style="background:#D6B87A"></div>Primary #D6B87A</div>
+            <div class="swatch"><div class="bar" style="background:#C9A862"></div>Hover #C9A862</div>
+            <div class="swatch"><div class="bar" style="background:rgba(214,184,122,.16)"></div>Soft rgba(...,.16)</div>
+            <div class="swatch"><div class="bar" style="background:rgba(214,184,122,.36)"></div>Border rgba(...,.36)</div>
+          </div>
+          <div class="sample">
+            <button class="btn" style="background:#D6B87A">開始轉換</button>
+            <span class="badge" style="color:#D6B87A;border-color:rgba(214,184,122,.36);background:rgba(214,184,122,.16)">MVP</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="title">蜜桃銅</div>
+          <div class="swatches">
+            <div class="swatch"><div class="bar" style="background:#C9866A"></div>Primary #C9866A</div>
+            <div class="swatch"><div class="bar" style="background:#B87459"></div>Hover #B87459</div>
+            <div class="swatch"><div class="bar" style="background:rgba(201,134,106,.16)"></div>Soft rgba(...,.16)</div>
+            <div class="swatch"><div class="bar" style="background:rgba(201,134,106,.36)"></div>Border rgba(...,.36)</div>
+          </div>
+          <div class="sample">
+            <button class="btn" style="background:#C9866A">開始轉換</button>
+            <span class="badge" style="color:#C9866A;border-color:rgba(201,134,106,.36);background:rgba(201,134,106,.16)">MVP</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="title">鼠尾草綠</div>
+          <div class="swatches">
+            <div class="swatch"><div class="bar" style="background:#8FAE8E"></div>Primary #8FAE8E</div>
+            <div class="swatch"><div class="bar" style="background:#7E9D7D"></div>Hover #7E9D7D</div>
+            <div class="swatch"><div class="bar" style="background:rgba(143,174,142,.16)"></div>Soft rgba(...,.16)</div>
+            <div class="swatch"><div class="bar" style="background:rgba(143,174,142,.36)"></div>Border rgba(...,.36)</div>
+          </div>
+          <div class="sample">
+            <button class="btn" style="background:#8FAE8E">開始轉換</button>
+            <span class="badge" style="color:#8FAE8E;border-color:rgba(143,174,142,.36);background:rgba(143,174,142,.16)">MVP</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="title">霧藍灰</div>
+          <div class="swatches">
+            <div class="swatch"><div class="bar" style="background:#7F9BB3"></div>Primary #7F9BB3</div>
+            <div class="swatch"><div class="bar" style="background:#6D8AA3"></div>Hover #6D8AA3</div>
+            <div class="swatch"><div class="bar" style="background:rgba(127,155,179,.16)"></div>Soft rgba(...,.16)</div>
+            <div class="swatch"><div class="bar" style="background:rgba(127,155,179,.36)"></div>Border rgba(...,.36)</div>
+          </div>
+          <div class="sample">
+            <button class="btn" style="background:#7F9BB3">開始轉換</button>
+            <span class="badge" style="color:#7F9BB3;border-color:rgba(127,155,179,.36);background:rgba(127,155,179,.16)">MVP</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="title">薰衣草灰</div>
+          <div class="swatches">
+            <div class="swatch"><div class="bar" style="background:#9A8FB3"></div>Primary #9A8FB3</div>
+            <div class="swatch"><div class="bar" style="background:#897DA5"></div>Hover #897DA5</div>
+            <div class="swatch"><div class="bar" style="background:rgba(154,143,179,.16)"></div>Soft rgba(...,.16)</div>
+            <div class="swatch"><div class="bar" style="background:rgba(154,143,179,.36)"></div>Border rgba(...,.36)</div>
+          </div>
+          <div class="sample">
+            <button class="btn" style="background:#9A8FB3">開始轉換</button>
+            <span class="badge" style="color:#9A8FB3;border-color:rgba(154,143,179,.36);background:rgba(154,143,179,.16)">MVP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

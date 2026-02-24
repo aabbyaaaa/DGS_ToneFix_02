@@ -18,6 +18,7 @@ const CATALOG_URL_BASE = "https://ec.dgs.com.tw/catalog/catalog.html#p=";
 const DEFAULT_KNOWLEDGE_CHUNKS = 5;
 const FALLBACK_REFERENCE_LIMIT = 3;
 const ESTIMATED_OUTPUT_TOKENS = 1200;
+const MAX_SOURCE_TEXT_LENGTH = 1000;
 const TONE_ORDER: Tone[] = [Tone.CONCISE, Tone.STANDARD, Tone.FORMAL];
 
 interface ProductValidationIssue {
@@ -430,6 +431,10 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     enableFallbackRetrieval = true,
   } = request;
 
+  if (sourceText.length > MAX_SOURCE_TEXT_LENGTH) {
+    throw new Error(`技術回覆內容最多 ${MAX_SOURCE_TEXT_LENGTH} 字，請縮短後再試。`);
+  }
+
   const knowledgeLimit =
     typeof maxKnowledgeChunks === "number" && Number.isInteger(maxKnowledgeChunks) && maxKnowledgeChunks > 0
       ? maxKnowledgeChunks
@@ -653,4 +658,6 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     throw error;
   }
 };
+
+
 

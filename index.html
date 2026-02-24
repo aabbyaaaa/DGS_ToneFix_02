@@ -6,14 +6,89 @@
     <title>工程師客服回覆禮貌化工具</title>
     <link rel="icon" href="https://cdn.shopify.com/s/files/1/0204/3327/2854/files/favicon-16x16.ico?v=1754555256" />
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        --bg-body: #eef3f8;
+        --bg-glow:
+          radial-gradient(1200px 640px at 18% -16%, rgba(38, 183, 188, 0.24), transparent 58%),
+          radial-gradient(940px 520px at 92% -12%, rgba(0, 87, 135, 0.14), transparent 60%);
+        --surface-primary: #ffffff;
+        --surface-secondary: #f6fafc;
+        --surface-tertiary: #edf2f7;
+        --border-default: #d7e0ea;
+        --text-primary: #0f172a;
+        --text-secondary: #334155;
+        --text-muted: #64748b;
+        --brand-primary: #005787;
+        --brand-accent: #26b7bc;
+        --brand-soft: rgba(38, 183, 188, 0.12);
+        --brand-soft-border: rgba(38, 183, 188, 0.38);
+        --danger-surface: #fef2f2;
+        --danger-border: #fecaca;
+        --danger-text: #b91c1c;
+        --cta-bg: #26b7bc;
+        --cta-bg-hover: #005787;
+        --panel-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+        color-scheme: light;
+      }
+
+      html[data-theme='dark'] {
+        --bg-body: #111317;
+        --bg-glow:
+          radial-gradient(1080px 580px at 16% -22%, rgba(201, 139, 87, 0.2), transparent 60%),
+          radial-gradient(900px 500px at 88% -18%, rgba(233, 170, 126, 0.1), transparent 62%);
+        --surface-primary: #1a1d23;
+        --surface-secondary: #232831;
+        --surface-tertiary: #2b313b;
+        --border-default: #3a424f;
+        --text-primary: #f3f4f6;
+        --text-secondary: #d6d9df;
+        --text-muted: #a5adba;
+        --brand-primary: #c98b57;
+        --brand-accent: #c98b57;
+        --brand-soft: rgba(201, 139, 87, 0.16);
+        --brand-soft-border: rgba(201, 139, 87, 0.36);
+        --danger-surface: #44262d;
+        --danger-border: #7f3641;
+        --danger-text: #fecdd3;
+        --cta-bg: #c98b57;
+        --cta-bg-hover: #b97a45;
+        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+        color-scheme: dark;
+      }
+
       body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
+        font-family: 'Noto Sans TC', 'IBM Plex Sans', 'Segoe UI', sans-serif;
+        background-color: var(--bg-body);
+        background-image: var(--bg-glow);
+        background-attachment: fixed;
+        color: var(--text-primary);
+        margin: 0;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      ::selection {
+        background: var(--brand-soft);
+        color: var(--text-primary);
+      }
+
+      .theme-panel {
+        box-shadow: var(--panel-shadow);
+      }
+
+      .submit-btn {
+        background: var(--cta-bg);
+      }
+
+      .submit-btn:hover {
+        background: var(--cta-bg-hover);
       }
     </style>
-  <script type="importmap">
+    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.4",
@@ -25,7 +100,7 @@
   }
 }
 </script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
