@@ -3,10 +3,30 @@ import Header, { ThemeMode } from './components/Header';
 import InputForm from './components/InputForm';
 import { VariantCard, EmptyState } from './components/OutputDisplay';
 import { polishText } from './services/geminiService';
-import { PolishRequest, PolishResponse, Tone, TokenRiskLevel } from './types';
+import { PolishRequest, PolishResponse, PolishedVariant, Tone, TokenRiskLevel } from './types';
 import { AlertCircle } from 'lucide-react';
 
 const THEME_MODE_STORAGE_KEY = 'dgs-theme-mode';
+
+interface StandardComparisonResult {
+  lexical: PolishResponse;
+  hybrid: PolishResponse;
+}
+
+interface ComparisonSummary {
+  lexicalLength: number;
+  hybridLength: number;
+  lengthDelta: number;
+  lexicalMatchedChunks: number;
+  hybridMatchedChunks: number;
+  lexicalTokens: number;
+  hybridTokens: number;
+  tokenDelta: number;
+  addedProducts: string[];
+  removedProducts: string[];
+  lexicalPages: number[];
+  hybridPages: number[];
+}
 
 function isThemeMode(value: string | null): value is ThemeMode {
   return value === 'light' || value === 'dark' || value === 'system';
@@ -22,6 +42,7 @@ function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<PolishResponse | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<StandardComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === 'undefined') {
@@ -71,10 +92,26 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setResponse(null);
+    setComparisonResult(null);
 
     try {
-      const result = await polishText(data);
-      setResponse(result);
+      if (data.compareStandardOnly) {
+        const baseRequest: PolishRequest = {
+          ...data,
+          requestedTones: [Tone.STANDARD],
+        };
+
+        const [lexicalResult, hybridResult] = await Promise.all([
+          polishText({ ...baseRequest, retrievalMode: 'lexical' }),
+          polishText({ ...baseRequest, retrievalMode: 'hybrid' }),
+        ]);
+
+        setComparisonResult({ lexical: lexicalResult, hybrid: hybridResult });
+        setResponse(hybridResult);
+      } else {
+        const result = await polishText(data);
+        setResponse(result);
+      }
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : '';
       if (rawMessage.includes('技術回覆內容最多')) {
@@ -93,12 +130,48 @@ const App: React.FC = () => {
   };
 
   const getVariant = (tone: Tone) => response?.variants.find((variant) => variant.tone === tone);
+  const getStandardVariant = (payload: PolishResponse | null): PolishedVariant | undefined =>
+    payload?.variants.find((variant) => variant.tone === Tone.STANDARD);
 
   const standardVariant = getVariant(Tone.STANDARD);
   const conciseVariant = getVariant(Tone.CONCISE);
   const formalVariant = getVariant(Tone.FORMAL);
+  const lexicalStandardVariant = getStandardVariant(comparisonResult?.lexical ?? null);
+  const hybridStandardVariant = getStandardVariant(comparisonResult?.hybrid ?? null);
   const recommendations = response?.recommendedProducts ?? [];
   const rejectedCount = response?.knowledge?.validation.rejectedProducts.length ?? 0;
+  const comparisonSummary = useMemo<ComparisonSummary | null>(() => {
+    if (!comparisonResult) {
+      return null;
+    }
+
+    const lexical = comparisonResult.lexical;
+    const hybrid = comparisonResult.hybrid;
+    const lexicalVariant = getStandardVariant(lexical) ?? null;
+    const hybridVariant = getStandardVariant(hybrid) ?? null;
+
+    const lexicalProducts = (lexicalVariant?.mentionedProducts ?? []).map((item) => `${item.name}@p${item.page}`);
+    const hybridProducts = (hybridVariant?.mentionedProducts ?? []).map((item) => `${item.name}@p${item.page}`);
+    const lexicalSet = new Set(lexicalProducts);
+    const hybridSet = new Set(hybridProducts);
+
+    return {
+      lexicalLength: lexicalVariant?.content.length ?? 0,
+      hybridLength: hybridVariant?.content.length ?? 0,
+      lengthDelta: (hybridVariant?.content.length ?? 0) - (lexicalVariant?.content.length ?? 0),
+      lexicalMatchedChunks: lexical.knowledge?.matchedChunks ?? 0,
+      hybridMatchedChunks: hybrid.knowledge?.matchedChunks ?? 0,
+      lexicalTokens: lexical.knowledge?.tokenEstimate.estimatedTotalTokens ?? 0,
+      hybridTokens: hybrid.knowledge?.tokenEstimate.estimatedTotalTokens ?? 0,
+      tokenDelta:
+        (hybrid.knowledge?.tokenEstimate.estimatedTotalTokens ?? 0) -
+        (lexical.knowledge?.tokenEstimate.estimatedTotalTokens ?? 0),
+      addedProducts: hybridProducts.filter((name) => !lexicalSet.has(name)),
+      removedProducts: lexicalProducts.filter((name) => !hybridSet.has(name)),
+      lexicalPages: [...(lexical.knowledge?.matchedPages ?? [])],
+      hybridPages: [...(hybrid.knowledge?.matchedPages ?? [])],
+    };
+  }, [comparisonResult]);
 
   const riskBadgeClass = useMemo(
     () => (riskLevel: TokenRiskLevel) => {
@@ -135,9 +208,24 @@ const App: React.FC = () => {
             <InputForm onSubmit={handlePolishSubmit} isLoading={isLoading} />
           </div>
 
-          <div className="h-full">{standardVariant ? <VariantCard variant={standardVariant} /> : <EmptyState />}</div>
+          <div className="h-full space-y-4">
+            {comparisonResult ? (
+              <>
+                <div>
+                  <p className="mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)]">原版（Lexical）- 標準語氣</p>
+                  <div className="h-full">{lexicalStandardVariant ? <VariantCard variant={lexicalStandardVariant} /> : <EmptyState />}</div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)]">規劃版（Hybrid）- 標準語氣</p>
+                  <div className="h-full">{hybridStandardVariant ? <VariantCard variant={hybridStandardVariant} /> : <EmptyState />}</div>
+                </div>
+              </>
+            ) : (
+              <div className="h-full">{standardVariant ? <VariantCard variant={standardVariant} /> : <EmptyState />}</div>
+            )}
+          </div>
 
-          {response && (
+          {response && !comparisonResult && (
             <>
               <div className="h-full">{conciseVariant && <VariantCard variant={conciseVariant} />}</div>
               <div className="h-full">{formalVariant && <VariantCard variant={formalVariant} />}</div>
@@ -145,10 +233,31 @@ const App: React.FC = () => {
           )}
         </div>
 
+        {comparisonResult && (
+          <div className="mb-4 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] px-4 py-3 text-sm text-[var(--text-secondary)] theme-panel">
+            比較模式：僅輸出標準語氣。上方為原版 lexical、下方為規劃版 hybrid（成本約為單次標準語氣的 2 倍）。
+          </div>
+        )}
+
+        {comparisonSummary && (
+          <div className="mb-4 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] px-4 py-3 theme-panel">
+            <h3 className="text-sm font-semibold text-[var(--brand-primary)] mb-2">差異摘要（標準語氣）</h3>
+            <div className="space-y-1 text-xs text-[var(--text-secondary)]">
+              <p>文字長度：原版 {comparisonSummary.lexicalLength} 字 / 新版 {comparisonSummary.hybridLength} 字（差 {comparisonSummary.lengthDelta >= 0 ? '+' : ''}{comparisonSummary.lengthDelta}）</p>
+              <p>命中段落：原版 {comparisonSummary.lexicalMatchedChunks} / 新版 {comparisonSummary.hybridMatchedChunks}</p>
+              <p>估算 tokens：原版 ~{comparisonSummary.lexicalTokens} / 新版 ~{comparisonSummary.hybridTokens}（差 {comparisonSummary.tokenDelta >= 0 ? '+' : ''}{comparisonSummary.tokenDelta}）</p>
+              <p>命中頁碼：原版 [{comparisonSummary.lexicalPages.join(', ') || '無'}] / 新版 [{comparisonSummary.hybridPages.join(', ') || '無'}]</p>
+              <p>新增推薦（新版有、原版無）：{comparisonSummary.addedProducts.length > 0 ? comparisonSummary.addedProducts.join('；') : '無'}</p>
+              <p>移除推薦（原版有、新版無）：{comparisonSummary.removedProducts.length > 0 ? comparisonSummary.removedProducts.join('；') : '無'}</p>
+            </div>
+          </div>
+        )}
+
         {response?.knowledge && (
           <div className="mb-4 rounded-lg border px-4 py-3 text-sm theme-panel" style={{ borderColor: 'var(--brand-soft-border)', background: 'var(--brand-soft)', color: 'var(--brand-primary)' }}>
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span>套用型錄知識：{response.knowledge.enabled ? '是' : '否'}</span>
+              <span>檢索模式：{response.knowledge.queryDiagnostics.retrievalMode}</span>
               <span>分區：{response.knowledge.selectedSections.length > 0 ? response.knowledge.selectedSections.join(', ') : '無'}</span>
               <span>可檢索段落：{response.knowledge.scopedChunks}</span>
               <span>命中段落：{response.knowledge.matchedChunks}</span>
@@ -159,6 +268,8 @@ const App: React.FC = () => {
             </div>
             <div>
               頁碼：{response.knowledge.matchedPages.length > 0 ? response.knowledge.matchedPages.join(', ') : '無'}，
+              hybrid：{response.knowledge.queryDiagnostics.hybridUsed ? '已啟用' : '未啟用'}，
+              降級 lexical：{response.knowledge.queryDiagnostics.degradedToLexical ? '是' : '否'}，
               fallback：{response.knowledge.queryDiagnostics.fallbackUsed ? '已啟用' : '未啟用'}，
               通過驗證產品：{response.knowledge.validation.acceptedProducts}，
               剔除產品：{rejectedCount}
@@ -207,6 +318,17 @@ const App: React.FC = () => {
             <div className="border-t border-[var(--border-default)] px-4 py-3 space-y-3">
               <div className="text-xs text-[var(--text-secondary)] rounded-md border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
                 <p>fallback：{response.knowledge.queryDiagnostics.fallbackUsed ? '已啟用' : '未啟用'}</p>
+                <p>retrieval mode：{response.knowledge.queryDiagnostics.retrievalMode}</p>
+                <p>hybrid used：{response.knowledge.queryDiagnostics.hybridUsed ? 'yes' : 'no'}</p>
+                <p>degraded to lexical：{response.knowledge.queryDiagnostics.degradedToLexical ? 'yes' : 'no'}</p>
+                <p>bm25 top score：{response.knowledge.queryDiagnostics.bm25TopScore ?? 'n/a'}</p>
+                <p>vector top score：{response.knowledge.queryDiagnostics.vectorTopScore ?? 'n/a'}</p>
+                <p>
+                  hybrid weights：
+                  {response.knowledge.queryDiagnostics.hybridWeights
+                    ? ` bm25=${response.knowledge.queryDiagnostics.hybridWeights.bm25}, vector=${response.knowledge.queryDiagnostics.hybridWeights.vector}, exactBoost=${response.knowledge.queryDiagnostics.hybridWeights.exactBoost}`
+                    : ' n/a'}
+                </p>
                 <p>no-hit reason：{response.knowledge.queryDiagnostics.noHitReason ?? '無'}</p>
                 <p>model tokens：{response.knowledge.queryDiagnostics.modelTokens.join(', ') || '無'}</p>
                 <p>alnum tokens：{response.knowledge.queryDiagnostics.alphaNumTokens.join(', ') || '無'}</p>

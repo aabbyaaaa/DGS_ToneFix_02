@@ -2,9 +2,12 @@ import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENAI_EMBEDDINGS_API_URL = 'https://api.openai.com/v1/embeddings';
 const REQUEST_TIMEOUT_MS = 25000;
+const EMBEDDING_TIMEOUT_MS = 12000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 30;
+const EMBEDDING_RATE_LIMIT_MAX = 60;
 
 function sendJson(res: any, status: number, payload: unknown) {
   res.statusCode = status;
@@ -36,38 +39,43 @@ async function readRequestBody(req: any): Promise<unknown> {
   });
 }
 
-function createPolishProxyPlugin(apiKey: string): Plugin {
-  const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function createApiProxyPlugin(options: {
+  openRouterApiKey: string;
+  openAiApiKey: string;
+  embeddingModel: string;
+  hybridEnabled: boolean;
+}): Plugin {
+  const polishRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+  const embeddingRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-  const handleRequest = async (req: any, res: any, next: () => void) => {
-    if (req.url !== '/api/polish') {
-      next();
-      return;
+  const checkRateLimit = (rateMap: Map<string, { count: number; resetAt: number }>, ip: string, max: number): boolean => {
+    const now = Date.now();
+    const current = rateMap.get(ip);
+
+    if (!current || current.resetAt <= now) {
+      rateMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+      return true;
     }
 
-    if (req.method !== 'POST') {
-      sendJson(res, 405, { error: 'Method Not Allowed' });
-      return;
+    if (current.count >= max) {
+      return false;
     }
 
-    if (!apiKey) {
+    current.count += 1;
+    rateMap.set(ip, current);
+    return true;
+  };
+
+  const handlePolishRequest = async (req: any, res: any) => {
+    if (!options.openRouterApiKey) {
       sendJson(res, 500, { error: 'Server API key is missing (API_KEY).' });
       return;
     }
 
-    const now = Date.now();
     const ip = getClientIp(req);
-    const current = rateLimitMap.get(ip);
-
-    if (!current || current.resetAt <= now) {
-      rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    } else {
-      if (current.count >= RATE_LIMIT_MAX) {
-        sendJson(res, 429, { error: 'Too many requests. Please retry later.' });
-        return;
-      }
-      current.count += 1;
-      rateLimitMap.set(ip, current);
+    if (!checkRateLimit(polishRateLimitMap, ip, RATE_LIMIT_MAX)) {
+      sendJson(res, 429, { error: 'Too many requests. Please retry later.' });
+      return;
     }
 
     let payload: unknown;
@@ -85,7 +93,7 @@ function createPolishProxyPlugin(apiKey: string): Plugin {
       const upstream = await fetch(OPENROUTER_API_URL, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${options.openRouterApiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'http://localhost:5173',
           'X-Title': 'Dogger Polisher',
@@ -106,8 +114,96 @@ function createPolishProxyPlugin(apiKey: string): Plugin {
     }
   };
 
+  const handleEmbeddingRequest = async (req: any, res: any) => {
+    if (!options.hybridEnabled) {
+      sendJson(res, 503, { error: 'Hybrid retrieval is disabled.' });
+      return;
+    }
+    if (!options.openAiApiKey) {
+      sendJson(res, 500, { error: 'Server OPENAI_API_KEY is missing.' });
+      return;
+    }
+
+    const ip = getClientIp(req);
+    if (!checkRateLimit(embeddingRateLimitMap, ip, EMBEDDING_RATE_LIMIT_MAX)) {
+      sendJson(res, 429, { error: 'Too many requests. Please retry later.' });
+      return;
+    }
+
+    let payload: unknown;
+    try {
+      payload = await readRequestBody(req);
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON payload.' });
+      return;
+    }
+
+    const text = typeof (payload as { text?: unknown })?.text === 'string' ? (payload as { text: string }).text.trim() : '';
+    if (!text) {
+      sendJson(res, 400, { error: 'Invalid payload: text is required.' });
+      return;
+    }
+
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), EMBEDDING_TIMEOUT_MS);
+
+    try {
+      const upstream = await fetch(OPENAI_EMBEDDINGS_API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${options.openAiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: options.embeddingModel,
+          input: text,
+        }),
+        signal: timeoutController.signal,
+      });
+
+      const bodyText = await upstream.text();
+      if (!upstream.ok) {
+        sendJson(res, upstream.status, { error: bodyText || 'Embedding API failed.' });
+        return;
+      }
+
+      const parsed = JSON.parse(bodyText);
+      const vector = parsed?.data?.[0]?.embedding;
+      if (!Array.isArray(vector) || vector.length === 0) {
+        sendJson(res, 502, { error: 'Embedding vector is missing in API response.' });
+        return;
+      }
+
+      sendJson(res, 200, { model: parsed?.model, vector });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      sendJson(res, 502, { error: `Embedding upstream request failed: ${errorMessage}` });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  const handleRequest = async (req: any, res: any, next: () => void) => {
+    if (req.url !== '/api/polish' && req.url !== '/api/embedding') {
+      next();
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'Method Not Allowed' });
+      return;
+    }
+
+    if (req.url === '/api/polish') {
+      await handlePolishRequest(req, res);
+      return;
+    }
+
+    await handleEmbeddingRequest(req, res);
+  };
+
   return {
-    name: 'polish-proxy',
+    name: 'api-proxy',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         void handleRequest(req, res, next);
@@ -123,7 +219,16 @@ function createPolishProxyPlugin(apiKey: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
+
   return {
-    plugins: [react(), createPolishProxyPlugin(env.API_KEY)],
+    plugins: [
+      react(),
+      createApiProxyPlugin({
+        openRouterApiKey: env.API_KEY,
+        openAiApiKey: env.OPENAI_API_KEY,
+        embeddingModel: env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+        hybridEnabled: env.HYBRID_ENABLED === undefined || env.HYBRID_ENABLED === 'true',
+      }),
+    ],
   };
 });

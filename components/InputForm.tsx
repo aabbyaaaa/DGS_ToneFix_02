@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PolishRequest } from '../types';
+import { PolishRequest, Tone } from '../types';
 import { Sparkles, Trash2 } from 'lucide-react';
 
 const CATALOG_SECTION_OPTIONS = [
@@ -25,6 +25,7 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
   const [customerTitle, setCustomerTitle] = useState('');
   const [selectedSections, setSelectedSections] = useState<string[]>(['E']);
   const [isSourceTextTruncated, setIsSourceTextTruncated] = useState(false);
+  const [compareStandardOnly, setCompareStandardOnly] = useState(true);
 
   const toggleSection = (section: string) => {
     setSelectedSections((prev) => {
@@ -52,6 +53,9 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
       catalogSections: selectedSections,
       strictGrounding: true,
       enableFallbackRetrieval: true,
+      retrievalMode: 'hybrid',
+      compareStandardOnly,
+      requestedTones: compareStandardOnly ? [Tone.STANDARD] : undefined,
     });
   };
 
@@ -165,6 +169,18 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
           </div>
           <p className="text-[11px] text-[var(--text-muted)] mt-2">未勾選任何分區時，不會查型錄知識。</p>
         </div>
+
+        <label className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+          <input
+            type="checkbox"
+            checked={compareStandardOnly}
+            onChange={(e) => setCompareStandardOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-[var(--border-default)]"
+            style={{ accentColor: 'var(--brand-accent)' }}
+            disabled={isLoading}
+          />
+          <span>只比較標準語氣（原版 vs 新版，較省 token）</span>
+        </label>
 
         <button
           type="submit"

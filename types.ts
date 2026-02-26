@@ -13,7 +13,12 @@ export interface PolishRequest {
   maxKnowledgeChunks?: number;
   strictGrounding?: boolean;
   enableFallbackRetrieval?: boolean;
+  retrievalMode?: RetrievalMode;
+  requestedTones?: Tone[];
+  compareStandardOnly?: boolean;
 }
+
+export type RetrievalMode = 'lexical' | 'hybrid';
 
 export type TokenRiskLevel = 'low' | 'medium' | 'high';
 
@@ -58,8 +63,18 @@ export interface PolishResponse {
       modelTokens: string[];
       alphaNumTokens: string[];
       chineseTerms: string[];
+      retrievalMode: RetrievalMode;
+      hybridUsed: boolean;
+      degradedToLexical: boolean;
       fallbackUsed: boolean;
       noHitReason: string | null;
+      bm25TopScore?: number;
+      vectorTopScore?: number;
+      hybridWeights?: {
+        bm25: number;
+        vector: number;
+        exactBoost: number;
+      };
     };
     validation: {
       rejectedProducts: {

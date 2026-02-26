@@ -6,6 +6,7 @@ import {
   PolishResponse,
   ProductRecommendation,
   RecommendationConfidence,
+  RetrievalMode,
   TokenRiskLevel,
   Tone,
 } from "../types";
@@ -38,6 +39,65 @@ function normalizeSections(sections: string[] | undefined): string[] {
     return [];
   }
   return [...new Set(sections.map((section) => String(section).trim().toUpperCase()).filter((section) => /^[A-Z]$/.test(section)))];
+}
+
+function isTone(value: unknown): value is Tone {
+  return value === Tone.CONCISE || value === Tone.STANDARD || value === Tone.FORMAL;
+}
+
+function normalizeRequestedTones(requestedTones: Tone[] | undefined): Tone[] {
+  if (!Array.isArray(requestedTones)) {
+    return [...TONE_ORDER];
+  }
+
+  const valid = new Set(requestedTones.filter(isTone));
+  const tones = TONE_ORDER.filter((tone) => valid.has(tone));
+  return tones.length > 0 ? tones : [...TONE_ORDER];
+}
+
+function toneDescription(tone: Tone): string {
+  if (tone === Tone.CONCISE) {
+    return "Concise (精簡): Direct, efficient, bullet-oriented.";
+  }
+  if (tone === Tone.STANDARD) {
+    return "Standard (標準): Balanced and friendly.";
+  }
+  return "Formal (正式): Highly respectful and report-like.";
+}
+
+function buildToneInstruction(tones: Tone[]): string {
+  if (tones.length === 1) {
+    return `Generate exactly 1 version: ${toneDescription(tones[0])}`;
+  }
+  return `Generate exactly ${tones.length} versions:\n${tones.map((tone) => `       - ${toneDescription(tone)}`).join("\n")}`;
+}
+
+function buildResponseFormatExample(tones: Tone[]): string {
+  const variants = tones.map((tone) => ({
+    tone,
+    subject: "Email Subject",
+    content: "Full response content...",
+    references: [
+      {
+        source: "dgs_ecatalog",
+        page: 178,
+        excerpt: "Quoted snippet from catalog context",
+        sourceUrl: "https://.../page178.html",
+        catalogUrl: "https://.../catalog.html#p=178",
+      },
+    ],
+    mentionedProducts: [
+      {
+        name: "產品名稱",
+        models: ["169411", "169611"],
+        page: 462,
+        reason: "簡短推薦理由",
+        confidence: "high",
+      },
+    ],
+  }));
+
+  return JSON.stringify({ variants }, null, 2);
 }
 
 function parseConfidence(value: unknown): RecommendationConfidence {
@@ -130,7 +190,7 @@ function normalizeMentionedProducts(rawMentionedProducts: unknown): MentionedPro
   return products;
 }
 
-function normalizePolishVariants(raw: unknown, fallbackReferences: KnowledgeReference[]): PolishedVariant[] {
+function normalizePolishVariants(raw: unknown, fallbackReferences: KnowledgeReference[], tones: Tone[]): PolishedVariant[] {
   const rawVariants = Array.isArray((raw as { variants?: unknown[] } | undefined)?.variants)
     ? ((raw as { variants: unknown[] }).variants as unknown[])
     : [];
@@ -143,7 +203,7 @@ function normalizePolishVariants(raw: unknown, fallbackReferences: KnowledgeRefe
     }
   }
 
-  return TONE_ORDER.map((tone) => {
+  return tones.map((tone) => {
     const rawVariant = variantMap.get(tone);
     const content = typeof rawVariant?.content === "string" ? rawVariant.content.trim() : "";
 
@@ -429,7 +489,10 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     maxKnowledgeChunks,
     strictGrounding = true,
     enableFallbackRetrieval = true,
+    retrievalMode = "hybrid",
+    requestedTones,
   } = request;
+  const targetTones = normalizeRequestedTones(requestedTones);
 
   if (sourceText.length > MAX_SOURCE_TEXT_LENGTH) {
     throw new Error(`技術回覆內容最多 ${MAX_SOURCE_TEXT_LENGTH} 字，請縮短後再試。`);
@@ -443,7 +506,10 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
   const knowledgeEnabled = useCatalogKnowledge && selectedSections.length > 0;
 
   const retrievalResult = knowledgeEnabled
-    ? await retrieveCatalogContext(sourceText, knowledgeLimit, selectedSections, { enableFallbackRetrieval })
+    ? await retrieveCatalogContext(sourceText, knowledgeLimit, selectedSections, {
+        enableFallbackRetrieval,
+        retrievalMode,
+      })
     : {
         selectedSections,
         scopedChunks: 0,
@@ -452,6 +518,9 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
           modelTokens: [],
           alphaNumTokens: [],
           chineseTerms: [],
+          retrievalMode: retrievalMode as RetrievalMode,
+          hybridUsed: false,
+          degradedToLexical: false,
           fallbackUsed: false,
           noHitReason: "未啟用型錄知識檢索。",
         },
@@ -485,10 +554,7 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     3. Formatting:
        - Smart Paragraphing: Use line breaks and readable paragraph blocks.
        - Auto-Bulleting: If content includes specifications, steps, multiple issues, or item lists, use bullet points (•) or numbered lists (1., 2.).
-    4. Tone Variance: Generate exactly 3 versions:
-       - Concise (精簡): Direct, efficient, bullet-oriented.
-       - Standard (標準): Balanced and friendly.
-       - Formal (正式): Highly respectful and report-like.
+    4. Tone Variance: ${buildToneInstruction(targetTones)}
     5. Structure:
        - ${greetingInstruction}
        - Include technical content.
@@ -504,47 +570,7 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
 
     RESPONSE FORMAT:
     You must output a strictly valid JSON object matching this structure:
-    {
-      "variants": [
-        {
-          "tone": "concise",
-          "subject": "Email Subject",
-          "content": "Full response content...",
-          "references": [
-            {
-              "source": "dgs_ecatalog",
-              "page": 178,
-              "excerpt": "Quoted snippet from catalog context",
-              "sourceUrl": "https://.../page178.html",
-              "catalogUrl": "https://.../catalog.html#p=178"
-            }
-          ],
-          "mentionedProducts": [
-            {
-              "name": "產品名稱",
-              "models": ["169411", "169611"],
-              "page": 462,
-              "reason": "簡短推薦理由",
-              "confidence": "high"
-            }
-          ]
-        },
-        {
-          "tone": "standard",
-          "subject": "Email Subject",
-          "content": "Full response content...",
-          "references": [],
-          "mentionedProducts": []
-        },
-        {
-          "tone": "formal",
-          "subject": "Email Subject",
-          "content": "Full response content...",
-          "references": [],
-          "mentionedProducts": []
-        }
-      ]
-    }
+    ${buildResponseFormatExample(targetTones)}
   `;
 
   const userPromptWithoutContext = `
@@ -565,7 +591,7 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     ${knowledgeBlock}
     """
 
-    Please generate the 3 variants now in JSON.
+    Please generate ${targetTones.length} variant(s) now in JSON.
   `;
 
   const tokenEstimate = estimateTokenUsage(systemInstruction, userPromptWithoutContext, knowledgeBlock);
@@ -606,7 +632,7 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     }
 
     const parsed = JSON.parse(contentString);
-    const normalizedVariants = normalizePolishVariants(parsed, fallbackReferences);
+    const normalizedVariants = normalizePolishVariants(parsed, fallbackReferences, targetTones);
 
     const validationResult = validateMentionedProductsInVariants(normalizedVariants, matchedKnowledgeChunks, strictGrounding);
 

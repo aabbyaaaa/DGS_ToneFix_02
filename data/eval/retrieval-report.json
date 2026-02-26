@@ -1,12 +1,17 @@
 {
   "summary": {
+    "generatedAt": "2026-02-24T13:06:25.515Z",
     "totalQueries": 24,
-    "hitQueries": 21,
-    "hitRate": 0.875,
-    "fallbackUsedQueries": 9,
-    "threshold": 0.85,
+    "lexicalHitQueries": 21,
+    "hybridHitQueries": 21,
+    "lexicalHitRate": 0.875,
+    "hybridHitRate": 0.875,
+    "hybridP95LatencyMs": 0,
+    "hybridEvaluated": false,
+    "hybridHitThreshold": 0.9,
+    "hybridP95ThresholdMs": 250,
     "passed": true,
-    "generatedAt": "2026-02-24T09:46:26.248Z"
+    "notes": "Hybrid evaluation degraded to lexical because OPENAI_API_KEY or hybrid index is missing."
   },
   "results": [
     {
@@ -15,19 +20,27 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        486,
-        522,
-        522
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          486,
+          522,
+          522
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          486,
+          522,
+          522
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q02",
@@ -35,19 +48,27 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        462,
-        462,
-        463
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          462,
+          463
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          462,
+          463
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q03",
@@ -55,21 +76,29 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        462,
-        462,
-        463,
-        463
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          462,
+          463,
+          463
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          462,
+          463,
+          463
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q04",
@@ -77,23 +106,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        460,
-        410,
-        422,
-        423,
-        423
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          460,
+          410,
+          422,
+          423,
+          423
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          460,
+          410,
+          422,
+          423,
+          423
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q05",
@@ -101,23 +138,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        462,
-        461,
-        462,
-        310,
-        460
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          461,
+          462,
+          310,
+          460
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          461,
+          462,
+          310,
+          460
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q06",
@@ -125,23 +170,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        359,
-        359,
-        359,
-        462,
-        462
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          359,
+          359,
+          359,
+          462,
+          462
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          359,
+          359,
+          359,
+          462,
+          462
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q07",
@@ -149,23 +202,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        319,
-        330,
-        330,
-        333,
-        333
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          319,
+          330,
+          330,
+          333,
+          333
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          319,
+          330,
+          330,
+          333,
+          333
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q08",
@@ -173,23 +234,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        460,
-        460,
-        469,
-        317,
-        317
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          460,
+          460,
+          469,
+          317,
+          317
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          460,
+          460,
+          469,
+          317,
+          317
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q09",
@@ -197,23 +266,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        462,
-        310,
-        460,
-        460,
-        461
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          310,
+          460,
+          460,
+          461
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          310,
+          460,
+          460,
+          461
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q10",
@@ -221,23 +298,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        319,
-        320,
-        322,
-        325,
-        325
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          319,
+          320,
+          322,
+          325,
+          325
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          319,
+          320,
+          322,
+          325,
+          325
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q11",
@@ -245,23 +330,31 @@
       "sections": [
         "A"
       ],
-      "hit": true,
-      "fallbackUsed": true,
-      "noHitReason": "lexical miss, fallback used",
-      "topPages": [
-        25,
-        94,
-        96,
-        153,
-        153
-      ],
-      "topSections": [
-        "A",
-        "A",
-        "A",
-        "A",
-        "A"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          25,
+          94,
+          96,
+          153,
+          153
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          25,
+          94,
+          96,
+          153,
+          153
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q12",
@@ -269,17 +362,25 @@
       "sections": [
         "A"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        107,
-        143
-      ],
-      "topSections": [
-        "A",
-        "A"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          107,
+          143
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          107,
+          143
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q13",
@@ -287,21 +388,29 @@
       "sections": [
         "A"
       ],
-      "hit": true,
-      "fallbackUsed": true,
-      "noHitReason": "lexical miss, fallback used",
-      "topPages": [
-        42,
-        119,
-        120,
-        134
-      ],
-      "topSections": [
-        "A",
-        "A",
-        "A",
-        "A"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          42,
+          119,
+          120,
+          134
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          42,
+          119,
+          120,
+          134
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q14",
@@ -309,11 +418,19 @@
       "sections": [
         "B"
       ],
-      "hit": false,
-      "fallbackUsed": true,
-      "noHitReason": "no match after fallback",
-      "topPages": [],
-      "topSections": []
+      "lexical": {
+        "hit": false,
+        "fallbackUsed": true,
+        "noHitReason": "no match after fallback",
+        "topPages": []
+      },
+      "hybrid": {
+        "hit": false,
+        "degraded": true,
+        "noHitReason": "no match after fallback",
+        "topPages": [],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q15",
@@ -321,23 +438,31 @@
       "sections": [
         "B"
       ],
-      "hit": true,
-      "fallbackUsed": true,
-      "noHitReason": "lexical miss, fallback used",
-      "topPages": [
-        178,
-        179,
-        179,
-        179,
-        180
-      ],
-      "topSections": [
-        "B",
-        "B",
-        "B",
-        "B",
-        "B"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          178,
+          179,
+          179,
+          179,
+          180
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          178,
+          179,
+          179,
+          179,
+          180
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q16",
@@ -345,23 +470,31 @@
       "sections": [
         "C"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        232,
-        233,
-        233,
-        233,
-        233
-      ],
-      "topSections": [
-        "C",
-        "C",
-        "C",
-        "C",
-        "C"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          232,
+          233,
+          233,
+          233,
+          233
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          232,
+          233,
+          233,
+          233,
+          233
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q17",
@@ -369,23 +502,31 @@
       "sections": [
         "D"
       ],
-      "hit": true,
-      "fallbackUsed": true,
-      "noHitReason": "lexical miss, fallback used",
-      "topPages": [
-        260,
-        261,
-        263,
-        263,
-        266
-      ],
-      "topSections": [
-        "D",
-        "D",
-        "D",
-        "D",
-        "D"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          260,
+          261,
+          263,
+          263,
+          266
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          260,
+          261,
+          263,
+          263,
+          266
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q18",
@@ -393,23 +534,31 @@
       "sections": [
         "D"
       ],
-      "hit": true,
-      "fallbackUsed": true,
-      "noHitReason": "lexical miss, fallback used",
-      "topPages": [
-        256,
-        259,
-        259,
-        260,
-        260
-      ],
-      "topSections": [
-        "D",
-        "D",
-        "D",
-        "D",
-        "D"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          256,
+          259,
+          259,
+          260,
+          260
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          256,
+          259,
+          259,
+          260,
+          260
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q19",
@@ -417,23 +566,31 @@
       "sections": [
         "F"
       ],
-      "hit": true,
-      "fallbackUsed": true,
-      "noHitReason": "lexical miss, fallback used",
-      "topPages": [
-        618,
-        618,
-        618,
-        619,
-        619
-      ],
-      "topSections": [
-        "F",
-        "F",
-        "F",
-        "F",
-        "F"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          618,
+          618,
+          618,
+          619,
+          619
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": "lexical miss, fallback used",
+        "topPages": [
+          618,
+          618,
+          618,
+          619,
+          619
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q20",
@@ -441,11 +598,19 @@
       "sections": [
         "F"
       ],
-      "hit": false,
-      "fallbackUsed": true,
-      "noHitReason": "no match after fallback",
-      "topPages": [],
-      "topSections": []
+      "lexical": {
+        "hit": false,
+        "fallbackUsed": true,
+        "noHitReason": "no match after fallback",
+        "topPages": []
+      },
+      "hybrid": {
+        "hit": false,
+        "degraded": true,
+        "noHitReason": "no match after fallback",
+        "topPages": [],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q21",
@@ -453,23 +618,31 @@
       "sections": [
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        462,
-        463,
-        467,
-        468,
-        468
-      ],
-      "topSections": [
-        "E",
-        "E",
-        "E",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          463,
+          467,
+          468,
+          468
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          462,
+          463,
+          467,
+          468,
+          468
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q22",
@@ -477,11 +650,19 @@
       "sections": [
         "E"
       ],
-      "hit": false,
-      "fallbackUsed": true,
-      "noHitReason": "no match after fallback",
-      "topPages": [],
-      "topSections": []
+      "lexical": {
+        "hit": false,
+        "fallbackUsed": true,
+        "noHitReason": "no match after fallback",
+        "topPages": []
+      },
+      "hybrid": {
+        "hit": false,
+        "degraded": true,
+        "noHitReason": "no match after fallback",
+        "topPages": [],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q23",
@@ -490,15 +671,23 @@
         "B",
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        179
-      ],
-      "topSections": [
-        "B"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          179
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          179
+        ],
+        "latencyMs": 0
+      }
     },
     {
       "id": "q24",
@@ -507,23 +696,31 @@
         "B",
         "E"
       ],
-      "hit": true,
-      "fallbackUsed": false,
-      "noHitReason": null,
-      "topPages": [
-        180,
-        180,
-        187,
-        391,
-        427
-      ],
-      "topSections": [
-        "B",
-        "B",
-        "B",
-        "E",
-        "E"
-      ]
+      "lexical": {
+        "hit": true,
+        "fallbackUsed": false,
+        "noHitReason": null,
+        "topPages": [
+          180,
+          180,
+          187,
+          391,
+          427
+        ]
+      },
+      "hybrid": {
+        "hit": true,
+        "degraded": true,
+        "noHitReason": null,
+        "topPages": [
+          180,
+          180,
+          187,
+          391,
+          427
+        ],
+        "latencyMs": 0
+      }
     }
   ]
 }
