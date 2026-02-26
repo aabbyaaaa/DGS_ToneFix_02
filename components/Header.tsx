@@ -35,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({ themeMode, resolvedTheme, onThemeModeCh
                 v1.2
               </span>
             </h1>
-            <p className="text-xs text-[var(--text-muted)] hidden sm:block">保留專業術語，自動潤飾語氣</p>
+            <p className="text-xs text-[var(--text-muted)] hidden sm:block">型錄優先檢索，產品清單補漏推薦（最終貨號網址）</p>
           </div>
         </div>
 
