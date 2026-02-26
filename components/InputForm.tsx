@@ -3,12 +3,12 @@ import { PolishRequest } from '../types';
 import { Sparkles, Trash2 } from 'lucide-react';
 
 const CATALOG_SECTION_OPTIONS = [
-  { section: 'A', label: 'A: 14-176' },
-  { section: 'B', label: 'B: 178-229' },
-  { section: 'C', label: 'C: 232-252' },
-  { section: 'D', label: 'D: 254-307' },
-  { section: 'E', label: 'E: 310-600' },
-  { section: 'F', label: 'F: 602-627' },
+  { section: 'A', label: 'A：基礎實驗器材' },
+  { section: 'B', label: 'B：容器' },
+  { section: 'C', label: 'C：濾紙試紙' },
+  { section: 'D', label: 'D：液體處理設備' },
+  { section: 'E', label: 'E：泛用儀器' },
+  { section: 'F', label: 'F：公安無塵設備' },
 ] as const;
 
 const MAX_SOURCE_TEXT_LENGTH = 1000;
