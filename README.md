@@ -79,4 +79,12 @@ npm run merge:catalog:af     # 合併 A~F
 - `api/polish.ts`：部署端（如 Vercel）可用的最小代理。
 - `vite.config.ts`：本地 dev/preview 的 middleware 代理（含基本 rate limit + timeout）。
 
+## CI 與 PR 檢查
+- GitHub Actions workflow：`.github/workflows/ci.yml`
+- 觸發條件：`pull_request`（target `main`）與 `push`（`main`）
+- 檢查項目：
+  - `CI / test`：`npm run test`
+  - `CI / build`：`npm run build`
+- CI 使用 Node.js `20`，建議本機也使用相同主版本以降低差異。
+
 
