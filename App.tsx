@@ -118,6 +118,15 @@ const App: React.FC = () => {
     []
   );
 
+  const sourceBadgeClass = useMemo(
+    () => (source: 'catalog' | 'product_list' | 'both') => {
+      if (source === 'both') return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      if (source === 'product_list') return 'bg-teal-100 text-teal-700 border-teal-200';
+      return 'bg-sky-100 text-sky-700 border-sky-200';
+    },
+    []
+  );
+
   return (
     <div className="min-h-screen flex flex-col text-[var(--text-primary)]">
       <Header themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} />
@@ -160,6 +169,7 @@ const App: React.FC = () => {
             <div>
               頁碼：{response.knowledge.matchedPages.length > 0 ? response.knowledge.matchedPages.join(', ') : '無'}，
               fallback：{response.knowledge.queryDiagnostics.fallbackUsed ? '已啟用' : '未啟用'}，
+              產品清單補漏：{response.knowledge.productList?.fallbackUsed ? '已啟用' : '未啟用'}，
               通過驗證產品：{response.knowledge.validation.acceptedProducts}，
               剔除產品：{rejectedCount}
             </div>
@@ -182,18 +192,29 @@ const App: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {recommendations.map((item) => (
-                  <div key={`${item.rank}-${item.section}-${item.page}-${item.name}`} className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
+                  <div key={`${item.rank}-${item.name}-${item.finalCode ?? item.page ?? 'x'}`} className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
                     <div className="flex items-center justify-between mb-2 gap-2">
                       <p className="text-sm font-semibold text-[var(--brand-primary)]">{item.name}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${confidenceBadgeClass(item.confidence)}`}>{item.confidence}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeClass(item.source)}`}>{item.source}</span>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${confidenceBadgeClass(item.confidence)}`}>{item.confidence}</span>
+                      </div>
                     </div>
                     <p className="text-xs text-[var(--text-secondary)] mb-1">型號：{item.models.length > 0 ? item.models.join('、') : '未提供'}</p>
+                    {item.finalCode && <p className="text-xs text-[var(--text-secondary)] mb-1">最終貨號：{item.finalCode}</p>}
+                    {item.headCode && <p className="text-xs text-[var(--text-secondary)] mb-1">帶頭貨號：{item.headCode}</p>}
                     <p className="text-xs text-[var(--text-secondary)] mb-1">推薦原因：{item.reason}</p>
                     <p className="text-xs text-[var(--text-muted)] mb-1">命中證據：{item.evidenceExcerpt || '無'}</p>
                     <p className="text-xs text-[var(--text-muted)] mb-2">來源語氣：{item.tones.join(', ')}</p>
-                    <a href={item.catalogUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-accent)] hover:underline">
-                      來源：{item.section} 區，第 {item.page} 頁
-                    </a>
+                    {item.productUrl ? (
+                      <a href={item.productUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-accent)] hover:underline">
+                        來源：產品清單最終貨號網址
+                      </a>
+                    ) : item.catalogUrl ? (
+                      <a href={item.catalogUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-accent)] hover:underline">
+                        來源：{item.section ?? '-'} 區，第 {item.page ?? '-'} 頁
+                      </a>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -213,6 +234,9 @@ const App: React.FC = () => {
                 <p>chinese terms：{response.knowledge.queryDiagnostics.chineseTerms.join(', ') || '無'}</p>
                 <p>
                   validation：accepted {response.knowledge.validation.acceptedProducts} / rejected {rejectedCount}
+                </p>
+                <p>
+                  product-list fallback：{response.knowledge.productList?.fallbackUsed ? 'yes' : 'no'} / matched {response.knowledge.productList?.matchedItems ?? 0}
                 </p>
               </div>
 
@@ -237,6 +261,20 @@ const App: React.FC = () => {
                   <p className="text-xs text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">{chunk.text}</p>
                 </div>
               ))}
+
+              {response.knowledge.productList && response.knowledge.productList.topItems.length > 0 && (
+                <div className="rounded-md border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
+                  <p className="text-xs font-semibold text-[var(--brand-primary)] mb-2">產品清單命中（TopK）</p>
+                  {response.knowledge.productList.topItems.map((item, index) => (
+                    <p key={`${item.finalCode}-${item.headCode}-${index}`} className="text-xs text-[var(--text-secondary)] mb-1">
+                      {index + 1}. {item.name} | final {item.finalCode} | head {item.headCode} | score {item.score} | matched {item.matchedTerms.join(', ') || 'none'} |{' '}
+                      <a href={item.productUrl} target="_blank" rel="noreferrer" className="text-[var(--brand-accent)] hover:underline">
+                        link
+                      </a>
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           </details>
         )}

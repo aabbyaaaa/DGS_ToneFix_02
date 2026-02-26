@@ -18,6 +18,7 @@ export interface PolishRequest {
 export type TokenRiskLevel = 'low' | 'medium' | 'high';
 
 export type RecommendationConfidence = 'high' | 'medium' | 'low';
+export type RecommendationSource = 'catalog' | 'product_list' | 'both';
 
 export interface KnowledgeReference {
   source: string;
@@ -69,6 +70,20 @@ export interface PolishResponse {
       }[];
       acceptedProducts: number;
     };
+    productList?: {
+      enabled: boolean;
+      fallbackUsed: boolean;
+      matchedItems: number;
+      topItems: {
+        finalCode: string;
+        headCode: string;
+        name: string;
+        sourceLabel: RecommendationSource;
+        score: number;
+        matchedTerms: string[];
+        productUrl: string;
+      }[];
+    };
     topChunks: {
       id: string;
       section?: string;
@@ -87,13 +102,17 @@ export interface ProductRecommendation {
   rank: 1 | 2 | 3;
   name: string;
   models: string[];
-  section: string;
-  page: number;
+  section?: string;
+  page?: number;
   reason: string;
-  catalogUrl: string;
+  catalogUrl?: string;
+  productUrl?: string;
   evidenceExcerpt: string;
   confidence: RecommendationConfidence;
   tones: Tone[];
+  source: RecommendationSource;
+  finalCode?: string;
+  headCode?: string;
 }
 
 export interface MentionedProduct {

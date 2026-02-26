@@ -13,6 +13,7 @@
 5. **推薦產品嚴格校驗**：LLM 提到的產品需可在命中 chunk 驗證，否則剔除。
 6. **推薦產品卡（可追溯）**：顯示 section/page/source URL + evidence excerpt。
 7. **最小後端代理**：前端改呼叫 `/api/polish`，API key 不再暴露在前端 bundle。`r`n8. **輸入長度控制**：技術回覆內容上限 1000 字（剛好 1000 可送出，超過自動截斷）。`r`n9. **Dark Mode / Light Mode / System**：Header 可切換主題並記住偏好（localStorage）。
+10. **產品清單補漏推薦**：型錄 TopK 未命中時，使用產品清單補漏並優先給最終貨號網址。
 
 ## 技術堆疊
 - **Frontend**: React 19 + Tailwind CSS
@@ -67,6 +68,7 @@ npm run extract:catalog:c    # C: 232-252
 npm run extract:catalog:d    # D: 254-307
 npm run extract:catalog:f    # F: 602-627
 npm run merge:catalog:af     # 合併 A~F
+npm run build:product-list-index  # 由 XLSX 產生產品清單索引
 ```
 
 合併輸出：
@@ -74,6 +76,7 @@ npm run merge:catalog:af     # 合併 A~F
 - `data/catalog/catalog_A_F_chunks.jsonl`
 - `data/catalog/catalog_A_F_chunks.csv`
 - `public/knowledge/catalog_A_F_chunks.json`
+- `public/knowledge/product_list_index.json`
 
 ## 代理端點
 - `api/polish.ts`：部署端（如 Vercel）可用的最小代理。

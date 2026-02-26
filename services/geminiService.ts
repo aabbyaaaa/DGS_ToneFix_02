@@ -5,11 +5,13 @@ import {
   PolishRequest,
   PolishResponse,
   ProductRecommendation,
+  RecommendationSource,
   RecommendationConfidence,
   TokenRiskLevel,
   Tone,
 } from "../types";
 import { retrieveCatalogContext, ScoredCatalogChunk } from "./catalogKnowledgeService";
+import { retrieveProductListContext, ScoredProductListItem } from "./productListKnowledgeService";
 
 export const MODEL_NAME = "google/gemini-3-flash-preview";
 
@@ -179,6 +181,24 @@ ${chunk.text}
     .join("\n\n");
 }
 
+function buildProductListContextBlock(items: ScoredProductListItem[]): string {
+  if (items.length === 0) {
+    return "No matching product-list context was found.";
+  }
+
+  return items
+    .map(
+      (item, index) => `
+[P${index + 1}] class3=${item.class3} headCode=${item.headCode} finalCode=${item.finalCode} score=${item.score}
+finalUrl=${item.finalUrl}
+name=${item.name}
+description=${item.description}
+specs=${item.searchSpecs.slice(0, 6).join("; ")}
+`.trim()
+    )
+    .join("\n\n");
+}
+
 function stripCatalogCitationLines(content: string): string {
   return content
     .split(/\r?\n/)
@@ -205,8 +225,31 @@ function buildMentionedProductsFooter(mentionedProducts: MentionedProduct[] | un
   return lines.join("\n");
 }
 
-function appendMentionedProductsFooter(content: string, mentionedProducts: MentionedProduct[] | undefined): string {
-  const footer = buildMentionedProductsFooter(mentionedProducts);
+function buildRecommendationFooter(recommendations: ProductRecommendation[]): string {
+  if (recommendations.length === 0) {
+    return "";
+  }
+
+  const lines = ["🟦 推薦產品"];
+  for (const product of recommendations) {
+    const modelPart = product.models.length > 0 ? `（${product.models.join("、")}）` : "";
+    const codePart = product.finalCode ? `（${product.finalCode}）` : "";
+    const link = product.productUrl || product.catalogUrl;
+    if (!link) {
+      continue;
+    }
+
+    if (product.source === "product_list") {
+      lines.push(`${product.name}${codePart}：${link}`);
+    } else {
+      lines.push(`${product.name}${modelPart}：${link}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function appendFooter(content: string, footer: string): string {
   if (!footer) {
     return content;
   }
@@ -214,6 +257,19 @@ function appendMentionedProductsFooter(content: string, mentionedProducts: Menti
     return content;
   }
   return `${content.trim()}\n\n${footer}`;
+}
+
+function appendMentionedProductsFooter(content: string, mentionedProducts: MentionedProduct[] | undefined): string {
+  const footer = buildMentionedProductsFooter(mentionedProducts);
+  return appendFooter(content, footer);
+}
+
+function appendRecommendationFooter(content: string, recommendations: ProductRecommendation[]): string {
+  const footer = buildRecommendationFooter(recommendations);
+  if (!footer) {
+    return content;
+  }
+  return appendFooter(content, footer);
 }
 
 function getTokenRiskLevel(totalTokens: number): TokenRiskLevel {
@@ -416,6 +472,41 @@ export function buildRecommendationsFromVariants(
     evidenceExcerpt: item.evidenceExcerpt,
     confidence: item.confidence,
     tones: [...item.tones],
+    source: "catalog" as RecommendationSource,
+  }));
+}
+
+function scoreToConfidence(score: number): RecommendationConfidence {
+  if (score >= 24) {
+    return "high";
+  }
+  if (score >= 12) {
+    return "medium";
+  }
+  return "low";
+}
+
+function buildReasonFromMatchedTerms(matchedTerms: string[]): string {
+  if (matchedTerms.length === 0) {
+    return "與查詢內容語義接近";
+  }
+  return `命中關鍵詞：${matchedTerms.slice(0, 4).join("、")}`;
+}
+
+export function buildRecommendationsFromProductList(items: ScoredProductListItem[]): ProductRecommendation[] {
+  return items.slice(0, 3).map((item, index) => ({
+    rank: (index + 1) as 1 | 2 | 3,
+    name: item.name,
+    models: [item.finalCode],
+    reason: buildReasonFromMatchedTerms(item.matchedTerms),
+    productUrl: item.finalUrl,
+    evidenceExcerpt: buildEvidenceExcerpt(item.description || item.searchText),
+    confidence: scoreToConfidence(item.score),
+    tones: [Tone.STANDARD],
+    source: "product_list",
+    finalCode: item.finalCode,
+    headCode: item.headCode,
+    section: item.class3,
   }));
 }
 
@@ -457,8 +548,21 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
         },
       };
   const matchedKnowledgeChunks = retrievalResult.items;
+  const shouldUseProductListFallback = knowledgeEnabled && matchedKnowledgeChunks.length === 0;
+  const productListResult = shouldUseProductListFallback
+    ? await retrieveProductListContext(sourceText, knowledgeLimit, selectedSections)
+    : {
+        selectedSections,
+        scopedItems: 0,
+        items: [],
+        accessoryIntent: false,
+      };
+  const matchedProductListItems = productListResult.items;
   const fallbackReferences = toFallbackReferences(matchedKnowledgeChunks);
-  const knowledgeBlock = buildKnowledgeContextBlock(matchedKnowledgeChunks);
+  const knowledgeBlock =
+    matchedKnowledgeChunks.length > 0
+      ? buildKnowledgeContextBlock(matchedKnowledgeChunks)
+      : buildProductListContextBlock(matchedProductListItems);
   const matchedPages = new Set(matchedKnowledgeChunks.map((chunk) => chunk.page));
   const pageSectionMap = new Map<number, string>();
   const pageEvidenceMap = new Map<number, string>();
@@ -494,13 +598,14 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
        - Include technical content.
        - End with a polite closing sentence.
 
-    CATALOG CONTEXT RULES:
-    1. You may use the provided "Catalog Context" only when relevant to the user's technical text.
-    2. Never fabricate catalog data that is not in the context.
-    3. If no catalog context is relevant, keep references as an empty array and mentionedProducts as an empty array.
+    KNOWLEDGE CONTEXT RULES:
+    1. You may use the provided context only when relevant to the user's technical text.
+    2. Never fabricate product data that is not in the context.
+    3. If no context is relevant, keep references as an empty array and mentionedProducts as an empty array.
     4. mentionedProducts must list products explicitly mentioned in that variant content.
-    5. page in mentionedProducts must come from the provided context.
-    6. Do NOT include standalone lines like "型錄參考：第X頁" in content.
+    5. For catalog references, page in mentionedProducts must come from the provided context.
+    6. For product-list references, you may include productUrl and finalCode in mentionedProducts.
+    7. Do NOT include standalone lines like "型錄參考：第X頁" in content.
 
     RESPONSE FORMAT:
     You must output a strictly valid JSON object matching this structure:
@@ -524,6 +629,8 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
               "name": "產品名稱",
               "models": ["169411", "169611"],
               "page": 462,
+              "productUrl": "https://dgs.com.tw/product/HEAD/FINAL",
+              "finalCode": "AK14000-00010",
               "reason": "簡短推薦理由",
               "confidence": "high"
             }
@@ -560,7 +667,7 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
   const userPrompt = `
     ${userPromptWithoutContext}
 
-    Catalog Context:
+    Knowledge Context:
     """
     ${knowledgeBlock}
     """
@@ -609,20 +716,21 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     const normalizedVariants = normalizePolishVariants(parsed, fallbackReferences);
 
     const validationResult = validateMentionedProductsInVariants(normalizedVariants, matchedKnowledgeChunks, strictGrounding);
+    const productListRecommendations = matchedProductListItems.length > 0 ? buildRecommendationsFromProductList(matchedProductListItems) : [];
+    const catalogRecommendations = buildRecommendationsFromVariants(validationResult.variants, pageSectionMap, pageEvidenceMap);
+    const recommendedProducts = productListRecommendations.length > 0 ? productListRecommendations : catalogRecommendations;
 
     const variantsWithFooter = validationResult.variants.map((variant) => {
       const contentWithoutCitations = stripCatalogCitationLines(variant.content);
-      const contentWithProducts = appendMentionedProductsFooter(
-        contentWithoutCitations,
-        knowledgeEnabled ? variant.mentionedProducts : []
-      );
+      const contentWithProducts =
+        productListRecommendations.length > 0
+          ? appendRecommendationFooter(contentWithoutCitations, productListRecommendations)
+          : appendMentionedProductsFooter(contentWithoutCitations, knowledgeEnabled ? variant.mentionedProducts : []);
       return {
         ...variant,
         content: contentWithProducts,
       };
     });
-
-    const recommendedProducts = buildRecommendationsFromVariants(validationResult.variants, pageSectionMap, pageEvidenceMap);
 
     return {
       variants: variantsWithFooter,
@@ -639,6 +747,20 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
         validation: {
           rejectedProducts: validationResult.rejectedProducts,
           acceptedProducts: validationResult.acceptedProducts,
+        },
+        productList: {
+          enabled: shouldUseProductListFallback,
+          fallbackUsed: shouldUseProductListFallback,
+          matchedItems: matchedProductListItems.length,
+          topItems: matchedProductListItems.map((item) => ({
+            finalCode: item.finalCode,
+            headCode: item.headCode,
+            name: item.name,
+            sourceLabel: item.sourceLabel,
+            score: item.score,
+            matchedTerms: item.matchedTerms,
+            productUrl: item.finalUrl,
+          })),
         },
         topChunks: matchedKnowledgeChunks.map((chunk) => ({
           id: chunk.id,
