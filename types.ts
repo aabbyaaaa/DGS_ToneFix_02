@@ -40,12 +40,27 @@ export interface PolishResponse {
   variants: PolishedVariant[];
   recommendedProducts: ProductRecommendation[];
   knowledge?: {
+    retrievalMode: 'dual_merge';
     enabled: boolean;
     selectedSections: string[];
     scopedChunks: number;
     matchedChunks: number;
     retrievedTopK: number;
+    sourceStats: {
+      catalogMatched: number;
+      productListMatched: number;
+    };
     matchedPages: number[];
+    mergedContext: {
+      source: RecommendationSource;
+      score: number;
+      matchedTerms: string[];
+      page?: number;
+      finalCode?: string;
+      url: string;
+      preview: string;
+      charCount: number;
+    }[];
     tokenEstimate: {
       inputChars: number;
       contextChars: number;

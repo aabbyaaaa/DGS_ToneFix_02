@@ -18,9 +18,13 @@ export const MODEL_NAME = "google/gemini-3-flash-preview";
 const PROXY_API_URL = "/api/polish";
 const CATALOG_URL_BASE = "https://ec.dgs.com.tw/catalog/catalog.html#p=";
 const DEFAULT_KNOWLEDGE_CHUNKS = 5;
+const MERGED_CANDIDATE_POOL_SIZE = 8;
 const FALLBACK_REFERENCE_LIMIT = 3;
 const ESTIMATED_OUTPUT_TOKENS = 1200;
 const MAX_SOURCE_TEXT_LENGTH = 1000;
+const CATALOG_WEIGHT = 0.4;
+const PRODUCT_LIST_WEIGHT = 0.6;
+const EXACT_MATCH_BOOST = 0.1;
 const TONE_ORDER: Tone[] = [Tone.CONCISE, Tone.STANDARD, Tone.FORMAL];
 
 interface ProductValidationIssue {
@@ -35,6 +39,22 @@ interface ProductValidationResult {
   acceptedProducts: number;
 }
 
+type RetrievalSource = "catalog" | "product_list";
+
+interface MergedRetrievalItem {
+  key: string;
+  source: RetrievalSource;
+  score: number;
+  matchedTerms: string[];
+  page?: number;
+  finalCode?: string;
+  url: string;
+  preview: string;
+  charCount: number;
+  catalogChunk?: ScoredCatalogChunk;
+  productItem?: ScoredProductListItem;
+}
+
 function normalizeSections(sections: string[] | undefined): string[] {
   if (!Array.isArray(sections)) {
     return [];
@@ -47,6 +67,44 @@ function parseConfidence(value: unknown): RecommendationConfidence {
     return value;
   }
   return "medium";
+}
+
+function normalizeForMatch(value: string): string {
+  return value.normalize("NFKC").toLowerCase();
+}
+
+function normalizeModel(value: string): string {
+  return normalizeForMatch(value).replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeName(value: string): string {
+  return normalizeForMatch(value).replace(/\s+/g, "");
+}
+
+function uniqueValues(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function normalizeScore(value: number, min: number, max: number): number {
+  if (max <= min) {
+    return value > 0 ? 1 : 0;
+  }
+  return (value - min) / (max - min);
+}
+
+function getScoreBounds(values: number[]): { min: number; max: number } {
+  if (values.length === 0) {
+    return { min: 0, max: 0 };
+  }
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values),
+  };
+}
+
+function hasExactTokenMatch(text: string, tokens: string[]): boolean {
+  const normalizedText = normalizeForMatch(text);
+  return tokens.some((token) => token.length >= 3 && normalizedText.includes(token));
 }
 
 function toFallbackReferences(knowledgeChunks: ScoredCatalogChunk[]): KnowledgeReference[] {
@@ -163,39 +221,109 @@ function normalizePolishVariants(raw: unknown, fallbackReferences: KnowledgeRefe
   });
 }
 
-function buildKnowledgeContextBlock(knowledgeChunks: ScoredCatalogChunk[]): string {
-  if (knowledgeChunks.length === 0) {
-    return "No matching catalog context was found.";
+export function mergeRetrievalContexts(
+  catalogChunks: ScoredCatalogChunk[],
+  productItems: ScoredProductListItem[],
+  limit: number,
+  exactTokens: string[]
+): MergedRetrievalItem[] {
+  const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_KNOWLEDGE_CHUNKS;
+
+  const catalogScoreBounds = getScoreBounds(catalogChunks.map((chunk) => chunk.score));
+  const productScoreBounds = getScoreBounds(productItems.map((item) => item.score));
+
+  const catalogCandidates: MergedRetrievalItem[] = catalogChunks.map((chunk) => {
+    const normalized = normalizeScore(chunk.score, catalogScoreBounds.min, catalogScoreBounds.max);
+    const exactBoost = hasExactTokenMatch(chunk.text, exactTokens) ? EXACT_MATCH_BOOST : 0;
+    return {
+      key: `catalog:${chunk.id}`,
+      source: "catalog",
+      score: CATALOG_WEIGHT * normalized + exactBoost,
+      matchedTerms: chunk.matchedTerms,
+      page: chunk.page,
+      url: chunk.catalogUrl,
+      preview: buildEvidenceExcerpt(chunk.text),
+      charCount: chunk.charCount,
+      catalogChunk: chunk,
+    };
+  });
+
+  const productCandidates: MergedRetrievalItem[] = productItems.map((item) => {
+    const normalized = normalizeScore(item.score, productScoreBounds.min, productScoreBounds.max);
+    const exactBoost = hasExactTokenMatch(`${item.finalCode} ${item.searchText}`, exactTokens) ? EXACT_MATCH_BOOST : 0;
+    return {
+      key: `product:${item.headCode}:${item.finalCode}:${item.finalUrl}`,
+      source: "product_list",
+      score: PRODUCT_LIST_WEIGHT * normalized + exactBoost,
+      matchedTerms: item.matchedTerms,
+      finalCode: item.finalCode,
+      url: item.finalUrl,
+      preview: buildEvidenceExcerpt(item.description || item.searchText),
+      charCount: item.searchText.length,
+      productItem: item,
+    };
+  });
+
+  const ranked = [...catalogCandidates, ...productCandidates].sort((left, right) => right.score - left.score);
+  const selected: MergedRetrievalItem[] = [];
+  const selectedKeys = new Set<string>();
+
+  if (catalogCandidates.length > 0 && productCandidates.length > 0) {
+    const topProduct = ranked.find((item) => item.source === "product_list");
+    const topCatalog = ranked.find((item) => item.source === "catalog");
+    for (const item of [topProduct, topCatalog]) {
+      if (item && !selectedKeys.has(item.key) && selected.length < normalizedLimit) {
+        selected.push(item);
+        selectedKeys.add(item.key);
+      }
+    }
   }
 
-  return knowledgeChunks
-    .map(
-      (chunk, index) => `
-[K${index + 1}] section=${chunk.section ?? "-"} page=${chunk.page} score=${chunk.score}
-sourceUrl=${chunk.sourceUrl}
-catalogUrl=${chunk.catalogUrl}
-content:
-${chunk.text}
-`.trim()
-    )
-    .join("\n\n");
+  for (const item of ranked) {
+    if (selected.length >= normalizedLimit) {
+      break;
+    }
+    if (selectedKeys.has(item.key)) {
+      continue;
+    }
+    selected.push(item);
+    selectedKeys.add(item.key);
+  }
+
+  return selected;
 }
 
-function buildProductListContextBlock(items: ScoredProductListItem[]): string {
+function buildMergedKnowledgeContextBlock(items: MergedRetrievalItem[]): string {
   if (items.length === 0) {
-    return "No matching product-list context was found.";
+    return "No matching context was found.";
   }
 
   return items
-    .map(
-      (item, index) => `
-[P${index + 1}] class3=${item.class3} headCode=${item.headCode} finalCode=${item.finalCode} score=${item.score}
-finalUrl=${item.finalUrl}
-name=${item.name}
-description=${item.description}
-specs=${item.searchSpecs.slice(0, 6).join("; ")}
-`.trim()
-    )
+    .map((item, index) => {
+      if (item.source === "catalog" && item.catalogChunk) {
+        return `
+[M${index + 1}] source=catalog section=${item.catalogChunk.section ?? "-"} page=${item.catalogChunk.page} score=${item.score.toFixed(3)}
+catalogUrl=${item.catalogChunk.catalogUrl}
+sourceUrl=${item.catalogChunk.sourceUrl}
+matchedTerms=${item.catalogChunk.matchedTerms.join(", ") || "-"}
+content:
+${item.catalogChunk.text}
+`.trim();
+      }
+
+      if (item.source === "product_list" && item.productItem) {
+        return `
+[M${index + 1}] source=product_list class3=${item.productItem.class3} headCode=${item.productItem.headCode} finalCode=${item.productItem.finalCode} score=${item.score.toFixed(3)}
+finalUrl=${item.productItem.finalUrl}
+name=${item.productItem.name}
+matchedTerms=${item.productItem.matchedTerms.join(", ") || "-"}
+description=${item.productItem.description}
+specs=${item.productItem.searchSpecs.slice(0, 6).join("; ")}
+`.trim();
+      }
+
+      return `[M${index + 1}] source=${item.source} score=${item.score.toFixed(3)} url=${item.url}`;
+    })
     .join("\n\n");
 }
 
@@ -209,20 +337,6 @@ function stripCatalogCitationLines(content: string): string {
 
 function buildCatalogProductUrl(page: number): string {
   return `${CATALOG_URL_BASE}${page}`;
-}
-
-function buildMentionedProductsFooter(mentionedProducts: MentionedProduct[] | undefined): string {
-  if (!mentionedProducts || mentionedProducts.length === 0) {
-    return "";
-  }
-
-  const lines = ["🟦 推薦產品"];
-  for (const product of mentionedProducts) {
-    const modelPart = product.models.length > 0 ? `（${product.models.join("、")}）` : "";
-    lines.push(`${product.name}${modelPart}：${buildCatalogProductUrl(product.page)}`);
-  }
-
-  return lines.join("\n");
 }
 
 function buildRecommendationFooter(recommendations: ProductRecommendation[]): string {
@@ -239,8 +353,8 @@ function buildRecommendationFooter(recommendations: ProductRecommendation[]): st
       continue;
     }
 
-    if (product.source === "product_list") {
-      lines.push(`${product.name}${codePart}：${link}`);
+    if (product.source === "product_list" || product.source === "both") {
+      lines.push(`${product.name}${codePart || modelPart}：${link}`);
     } else {
       lines.push(`${product.name}${modelPart}：${link}`);
     }
@@ -257,11 +371,6 @@ function appendFooter(content: string, footer: string): string {
     return content;
   }
   return `${content.trim()}\n\n${footer}`;
-}
-
-function appendMentionedProductsFooter(content: string, mentionedProducts: MentionedProduct[] | undefined): string {
-  const footer = buildMentionedProductsFooter(mentionedProducts);
-  return appendFooter(content, footer);
 }
 
 function appendRecommendationFooter(content: string, recommendations: ProductRecommendation[]): string {
@@ -510,6 +619,80 @@ export function buildRecommendationsFromProductList(items: ScoredProductListItem
   }));
 }
 
+function hasModelOverlap(left: ProductRecommendation, right: ProductRecommendation): boolean {
+  const leftModels = uniqueValues([...(left.models ?? []), left.finalCode ?? ""].map((value) => normalizeModel(value)));
+  const rightModels = uniqueValues([...(right.models ?? []), right.finalCode ?? ""].map((value) => normalizeModel(value)));
+  return leftModels.some((model) => rightModels.includes(model));
+}
+
+function isSameRecommendedProduct(catalogItem: ProductRecommendation, productItem: ProductRecommendation): boolean {
+  if (hasModelOverlap(catalogItem, productItem)) {
+    return true;
+  }
+
+  const normalizedCatalogName = normalizeName(catalogItem.name);
+  const normalizedProductName = normalizeName(productItem.name);
+
+  return Boolean(
+    normalizedCatalogName &&
+      normalizedProductName &&
+      (normalizedCatalogName.includes(normalizedProductName) || normalizedProductName.includes(normalizedCatalogName))
+  );
+}
+
+function recommendationScore(item: ProductRecommendation): number {
+  const sourceWeight = item.source === "both" ? 3 : item.source === "product_list" ? 2 : 1;
+  return sourceWeight * 10 + confidenceScore(item.confidence) * 2 + (item.productUrl ? 1 : 0);
+}
+
+export function mergeRecommendations(
+  catalogRecommendations: ProductRecommendation[],
+  productListRecommendations: ProductRecommendation[]
+): ProductRecommendation[] {
+  const usedProductIndexes = new Set<number>();
+  const merged: ProductRecommendation[] = [];
+
+  for (const catalogItem of catalogRecommendations) {
+    const productIndex = productListRecommendations.findIndex(
+      (productItem, index) => !usedProductIndexes.has(index) && isSameRecommendedProduct(catalogItem, productItem)
+    );
+
+    if (productIndex < 0) {
+      merged.push(catalogItem);
+      continue;
+    }
+
+    const productItem = productListRecommendations[productIndex];
+    usedProductIndexes.add(productIndex);
+    merged.push({
+      ...catalogItem,
+      models: uniqueValues([...catalogItem.models, ...productItem.models]),
+      source: "both",
+      productUrl: productItem.productUrl,
+      finalCode: productItem.finalCode ?? catalogItem.finalCode,
+      headCode: productItem.headCode ?? catalogItem.headCode,
+      evidenceExcerpt: catalogItem.evidenceExcerpt || productItem.evidenceExcerpt,
+      reason: catalogItem.reason || productItem.reason,
+      confidence: pickHigherConfidence(catalogItem.confidence, productItem.confidence),
+      tones: [...new Set([...catalogItem.tones, ...productItem.tones])],
+    });
+  }
+
+  for (const [index, productItem] of productListRecommendations.entries()) {
+    if (!usedProductIndexes.has(index)) {
+      merged.push(productItem);
+    }
+  }
+
+  return merged
+    .sort((left, right) => recommendationScore(right) - recommendationScore(left))
+    .slice(0, 3)
+    .map((item, index) => ({
+      ...item,
+      rank: (index + 1) as 1 | 2 | 3,
+    }));
+}
+
 export const polishText = async (request: PolishRequest): Promise<PolishResponse> => {
   const {
     sourceText,
@@ -530,44 +713,59 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     typeof maxKnowledgeChunks === "number" && Number.isInteger(maxKnowledgeChunks) && maxKnowledgeChunks > 0
       ? maxKnowledgeChunks
       : DEFAULT_KNOWLEDGE_CHUNKS;
+  const candidateLimit = Math.max(knowledgeLimit, MERGED_CANDIDATE_POOL_SIZE);
   const selectedSections = normalizeSections(catalogSections);
   const knowledgeEnabled = useCatalogKnowledge && selectedSections.length > 0;
 
-  const retrievalResult = knowledgeEnabled
-    ? await retrieveCatalogContext(sourceText, knowledgeLimit, selectedSections, { enableFallbackRetrieval })
-    : {
-        selectedSections,
-        scopedChunks: 0,
-        items: [],
-        queryDiagnostics: {
-          modelTokens: [],
-          alphaNumTokens: [],
-          chineseTerms: [],
-          fallbackUsed: false,
-          noHitReason: "未啟用型錄知識檢索。",
+  const [catalogResult, productListResult] = knowledgeEnabled
+    ? await Promise.all([
+        retrieveCatalogContext(sourceText, candidateLimit, selectedSections, { enableFallbackRetrieval }),
+        retrieveProductListContext(sourceText, candidateLimit, selectedSections),
+      ])
+    : [
+        {
+          selectedSections,
+          scopedChunks: 0,
+          items: [] as ScoredCatalogChunk[],
+          queryDiagnostics: {
+            modelTokens: [] as string[],
+            alphaNumTokens: [] as string[],
+            chineseTerms: [] as string[],
+            fallbackUsed: false,
+            noHitReason: "未啟用型錄知識檢索。",
+          },
         },
-      };
-  const matchedKnowledgeChunks = retrievalResult.items;
-  const shouldUseProductListFallback = knowledgeEnabled && matchedKnowledgeChunks.length === 0;
-  const productListResult = shouldUseProductListFallback
-    ? await retrieveProductListContext(sourceText, knowledgeLimit, selectedSections)
-    : {
-        selectedSections,
-        scopedItems: 0,
-        items: [],
-        accessoryIntent: false,
-      };
+        {
+          selectedSections,
+          scopedItems: 0,
+          items: [] as ScoredProductListItem[],
+          accessoryIntent: false,
+        },
+      ];
+
+  const matchedCatalogChunks = catalogResult.items;
   const matchedProductListItems = productListResult.items;
-  const fallbackReferences = toFallbackReferences(matchedKnowledgeChunks);
-  const knowledgeBlock =
-    matchedKnowledgeChunks.length > 0
-      ? buildKnowledgeContextBlock(matchedKnowledgeChunks)
-      : buildProductListContextBlock(matchedProductListItems);
-  const matchedPages = new Set(matchedKnowledgeChunks.map((chunk) => chunk.page));
+  const exactTokens = uniqueValues([
+    ...catalogResult.queryDiagnostics.modelTokens,
+    ...catalogResult.queryDiagnostics.alphaNumTokens.filter((token) => /\d/.test(token)),
+  ]).map((token) => normalizeForMatch(token));
+  const mergedContextItems = knowledgeEnabled
+    ? mergeRetrievalContexts(matchedCatalogChunks, matchedProductListItems, knowledgeLimit, exactTokens)
+    : [];
+  const mergedCatalogChunks = mergedContextItems
+    .filter((item): item is MergedRetrievalItem & { catalogChunk: ScoredCatalogChunk } => item.source === "catalog" && Boolean(item.catalogChunk))
+    .map((item) => item.catalogChunk);
+  const mergedProductItems = mergedContextItems
+    .filter((item): item is MergedRetrievalItem & { productItem: ScoredProductListItem } => item.source === "product_list" && Boolean(item.productItem))
+    .map((item) => item.productItem);
+
+  const fallbackReferences = toFallbackReferences(mergedCatalogChunks);
+  const knowledgeBlock = buildMergedKnowledgeContextBlock(mergedContextItems);
+  const matchedPages = new Set(mergedCatalogChunks.map((chunk) => chunk.page));
   const pageSectionMap = new Map<number, string>();
   const pageEvidenceMap = new Map<number, string>();
 
-  for (const chunk of matchedKnowledgeChunks) {
+  for (const chunk of mergedCatalogChunks) {
     pageSectionMap.set(chunk.page, chunk.section ?? "-");
     if (!pageEvidenceMap.has(chunk.page)) {
       pageEvidenceMap.set(chunk.page, buildEvidenceExcerpt(chunk.text));
@@ -715,17 +913,14 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
     const parsed = JSON.parse(contentString);
     const normalizedVariants = normalizePolishVariants(parsed, fallbackReferences);
 
-    const validationResult = validateMentionedProductsInVariants(normalizedVariants, matchedKnowledgeChunks, strictGrounding);
-    const productListRecommendations = matchedProductListItems.length > 0 ? buildRecommendationsFromProductList(matchedProductListItems) : [];
+    const validationResult = validateMentionedProductsInVariants(normalizedVariants, mergedCatalogChunks, strictGrounding);
+    const productListRecommendations = mergedProductItems.length > 0 ? buildRecommendationsFromProductList(mergedProductItems) : [];
     const catalogRecommendations = buildRecommendationsFromVariants(validationResult.variants, pageSectionMap, pageEvidenceMap);
-    const recommendedProducts = productListRecommendations.length > 0 ? productListRecommendations : catalogRecommendations;
+    const recommendedProducts = mergeRecommendations(catalogRecommendations, productListRecommendations);
 
     const variantsWithFooter = validationResult.variants.map((variant) => {
       const contentWithoutCitations = stripCatalogCitationLines(variant.content);
-      const contentWithProducts =
-        productListRecommendations.length > 0
-          ? appendRecommendationFooter(contentWithoutCitations, productListRecommendations)
-          : appendMentionedProductsFooter(contentWithoutCitations, knowledgeEnabled ? variant.mentionedProducts : []);
+      const contentWithProducts = appendRecommendationFooter(contentWithoutCitations, recommendedProducts);
       return {
         ...variant,
         content: contentWithProducts,
@@ -736,21 +931,36 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
       variants: variantsWithFooter,
       recommendedProducts,
       knowledge: {
+        retrievalMode: "dual_merge",
         enabled: knowledgeEnabled,
         selectedSections,
-        scopedChunks: retrievalResult.scopedChunks,
-        matchedChunks: matchedKnowledgeChunks.length,
-        retrievedTopK: matchedKnowledgeChunks.length,
+        scopedChunks: catalogResult.scopedChunks,
+        matchedChunks: mergedCatalogChunks.length,
+        retrievedTopK: mergedContextItems.length,
+        sourceStats: {
+          catalogMatched: matchedCatalogChunks.length,
+          productListMatched: matchedProductListItems.length,
+        },
         matchedPages: [...matchedPages].sort((a, b) => a - b),
+        mergedContext: mergedContextItems.map((item) => ({
+          source: item.source,
+          score: Number(item.score.toFixed(3)),
+          matchedTerms: item.matchedTerms,
+          page: item.page,
+          finalCode: item.finalCode,
+          url: item.url,
+          preview: item.preview,
+          charCount: item.charCount,
+        })),
         tokenEstimate,
-        queryDiagnostics: retrievalResult.queryDiagnostics,
+        queryDiagnostics: catalogResult.queryDiagnostics,
         validation: {
           rejectedProducts: validationResult.rejectedProducts,
           acceptedProducts: validationResult.acceptedProducts,
         },
         productList: {
-          enabled: shouldUseProductListFallback,
-          fallbackUsed: shouldUseProductListFallback,
+          enabled: knowledgeEnabled,
+          fallbackUsed: false,
           matchedItems: matchedProductListItems.length,
           topItems: matchedProductListItems.map((item) => ({
             finalCode: item.finalCode,
@@ -762,7 +972,7 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
             productUrl: item.finalUrl,
           })),
         },
-        topChunks: matchedKnowledgeChunks.map((chunk) => ({
+        topChunks: mergedCatalogChunks.map((chunk) => ({
           id: chunk.id,
           section: chunk.section,
           page: chunk.page,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildRecommendationsFromVariants, validateMentionedProductsInVariants } from './geminiService';
-import { Tone } from '../types';
+import { buildRecommendationsFromVariants, mergeRecommendations, mergeRetrievalContexts, validateMentionedProductsInVariants } from './geminiService';
+import { ProductRecommendation, Tone } from '../types';
 import { ScoredCatalogChunk } from './catalogKnowledgeService';
+import { ScoredProductListItem } from './productListKnowledgeService';
 
 const matchedChunks: ScoredCatalogChunk[] = [
   {
@@ -18,6 +19,28 @@ const matchedChunks: ScoredCatalogChunk[] = [
     score: 24,
     matchedTerms: ['169411'],
     charCount: 40,
+  },
+];
+
+const matchedProductItems: ScoredProductListItem[] = [
+  {
+    id: 'pl-1',
+    headCode: 'AK14000',
+    finalCode: '169411',
+    finalUrl: 'https://dgs.com.tw/product/AK14000/169411',
+    name: 'CHEMKER 系列耐酸鹼真空幫浦',
+    description: '適用甲醇蒸氣與真空乾燥環境。',
+    brand: 'ROCKER',
+    class3: '泛用儀器',
+    class2: '幫浦',
+    class1: '真空',
+    isAccessory: false,
+    units: ['台'],
+    searchSpecs: ['PTFE', '169411'],
+    searchText: 'CHEMKER 系列耐酸鹼真空幫浦 169411 PTFE',
+    score: 32,
+    matchedTerms: ['169411', '幫浦'],
+    sourceLabel: 'product_list',
   },
 ];
 
@@ -73,5 +96,54 @@ describe('mentioned product validation', () => {
     expect(recommendations[0].confidence).toBe('high');
     expect(recommendations[0].tones.length).toBe(2);
     expect(recommendations[0].evidenceExcerpt.length).toBeGreaterThan(0);
+  });
+
+  it('merges dual retrieval results and keeps both sources in topK', () => {
+    const merged = mergeRetrievalContexts(matchedChunks, matchedProductItems, 5, ['169411']);
+
+    expect(merged.length).toBeGreaterThan(0);
+    expect(merged.some((item) => item.source === 'catalog')).toBe(true);
+    expect(merged.some((item) => item.source === 'product_list')).toBe(true);
+  });
+
+  it('prefers productUrl when catalog and product-list recommendations overlap', () => {
+    const catalogRecommendations: ProductRecommendation[] = [
+      {
+        rank: 1,
+        name: 'CHEMKER 系列耐酸鹼真空幫浦',
+        models: ['169411'],
+        section: 'E',
+        page: 462,
+        reason: '型錄命中',
+        catalogUrl: 'https://ec.dgs.com.tw/catalog/catalog.html#p=462',
+        evidenceExcerpt: '型錄證據',
+        confidence: 'high',
+        tones: [Tone.STANDARD],
+        source: 'catalog',
+      },
+    ];
+
+    const productRecommendations: ProductRecommendation[] = [
+      {
+        rank: 1,
+        name: 'CHEMKER 系列耐酸鹼真空幫浦',
+        models: ['169411'],
+        reason: '產品清單命中',
+        productUrl: 'https://dgs.com.tw/product/AK14000/169411',
+        evidenceExcerpt: '清單證據',
+        confidence: 'medium',
+        tones: [Tone.STANDARD],
+        source: 'product_list',
+        finalCode: '169411',
+        headCode: 'AK14000',
+      },
+    ];
+
+    const mergedRecommendations = mergeRecommendations(catalogRecommendations, productRecommendations);
+
+    expect(mergedRecommendations.length).toBe(1);
+    expect(mergedRecommendations[0].source).toBe('both');
+    expect(mergedRecommendations[0].productUrl).toBe('https://dgs.com.tw/product/AK14000/169411');
+    expect(mergedRecommendations[0].catalogUrl).toBe('https://ec.dgs.com.tw/catalog/catalog.html#p=462');
   });
 });

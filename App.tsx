@@ -157,10 +157,13 @@ const App: React.FC = () => {
         {response?.knowledge && (
           <div className="mb-4 rounded-lg border px-4 py-3 text-sm theme-panel" style={{ borderColor: 'var(--brand-soft-border)', background: 'var(--brand-soft)', color: 'var(--brand-primary)' }}>
             <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span>檢索模式：{response.knowledge.retrievalMode}</span>
               <span>套用型錄知識：{response.knowledge.enabled ? '是' : '否'}</span>
               <span>分區：{response.knowledge.selectedSections.length > 0 ? response.knowledge.selectedSections.join(', ') : '無'}</span>
               <span>可檢索段落：{response.knowledge.scopedChunks}</span>
               <span>命中段落：{response.knowledge.matchedChunks}</span>
+              <span>型錄命中：{response.knowledge.sourceStats.catalogMatched}</span>
+              <span>清單命中：{response.knowledge.sourceStats.productListMatched}</span>
               <span>TopK：{response.knowledge.retrievedTopK}</span>
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${riskBadgeClass(response.knowledge.tokenEstimate.riskLevel)}`}>
                 ~{response.knowledge.tokenEstimate.estimatedTotalTokens} tokens ({response.knowledge.tokenEstimate.riskLevel})
@@ -169,7 +172,7 @@ const App: React.FC = () => {
             <div>
               頁碼：{response.knowledge.matchedPages.length > 0 ? response.knowledge.matchedPages.join(', ') : '無'}，
               fallback：{response.knowledge.queryDiagnostics.fallbackUsed ? '已啟用' : '未啟用'}，
-              產品清單補漏：{response.knowledge.productList?.fallbackUsed ? '已啟用' : '未啟用'}，
+              雙路檢索：{response.knowledge.productList?.enabled ? '已啟用' : '未啟用'}，
               通過驗證產品：{response.knowledge.validation.acceptedProducts}，
               剔除產品：{rejectedCount}
             </div>
@@ -224,9 +227,10 @@ const App: React.FC = () => {
 
         {response?.knowledge?.enabled && (
           <details className="mb-6 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] theme-panel" open>
-            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--brand-primary)]">Debug 面板：命中 Chunk（TopK）</summary>
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--brand-primary)]">Debug 面板：命中 Context（TopK）</summary>
             <div className="border-t border-[var(--border-default)] px-4 py-3 space-y-3">
               <div className="text-xs text-[var(--text-secondary)] rounded-md border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
+                <p>retrieval mode：{response.knowledge.retrievalMode}</p>
                 <p>fallback：{response.knowledge.queryDiagnostics.fallbackUsed ? '已啟用' : '未啟用'}</p>
                 <p>no-hit reason：{response.knowledge.queryDiagnostics.noHitReason ?? '無'}</p>
                 <p>model tokens：{response.knowledge.queryDiagnostics.modelTokens.join(', ') || '無'}</p>
@@ -236,9 +240,25 @@ const App: React.FC = () => {
                   validation：accepted {response.knowledge.validation.acceptedProducts} / rejected {rejectedCount}
                 </p>
                 <p>
-                  product-list fallback：{response.knowledge.productList?.fallbackUsed ? 'yes' : 'no'} / matched {response.knowledge.productList?.matchedItems ?? 0}
+                  source stats：catalog {response.knowledge.sourceStats.catalogMatched} / product-list {response.knowledge.sourceStats.productListMatched}
                 </p>
               </div>
+
+              {response.knowledge.mergedContext.length === 0 && <p className="text-sm text-[var(--text-muted)]">本次未命中雙路檢索 context。</p>}
+              {response.knowledge.mergedContext.map((item, index) => (
+                <div key={`${item.source}-${item.url}-${index}`} className="rounded-md border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
+                  <p className="text-xs font-semibold text-[var(--brand-primary)] mb-1">
+                    M{index + 1} | source {item.source} | score {item.score} | chars {item.charCount}
+                    {item.page ? ` | page ${item.page}` : ''}
+                    {item.finalCode ? ` | final ${item.finalCode}` : ''}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mb-1">matched: {item.matchedTerms.length > 0 ? item.matchedTerms.join(', ') : 'none'}</p>
+                  <p className="text-xs text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed mb-1">{item.preview}</p>
+                  <a href={item.url} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-accent)] hover:underline">
+                    source link
+                  </a>
+                </div>
+              ))}
 
               {rejectedCount > 0 && (
                 <div className="rounded-md border border-red-300 bg-red-100/80 p-3 text-red-800">
