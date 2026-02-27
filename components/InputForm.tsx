@@ -2,15 +2,6 @@ import React, { useState } from 'react';
 import { PolishRequest } from '../types';
 import { Sparkles, Trash2 } from 'lucide-react';
 
-const CATALOG_SECTION_OPTIONS = [
-  { section: 'A', label: 'A：基礎實驗器材' },
-  { section: 'B', label: 'B：容器' },
-  { section: 'C', label: 'C：濾紙試紙' },
-  { section: 'D', label: 'D：液體處理設備' },
-  { section: 'E', label: 'E：泛用儀器' },
-  { section: 'F', label: 'F：公安無塵設備' },
-] as const;
-
 const MAX_SOURCE_TEXT_LENGTH = 1000;
 const SOURCE_TEXT_WARNING_THRESHOLD = 900;
 
@@ -23,17 +14,7 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
   const [sourceText, setSourceText] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerTitle, setCustomerTitle] = useState('');
-  const [selectedSections, setSelectedSections] = useState<string[]>(['E']);
   const [isSourceTextTruncated, setIsSourceTextTruncated] = useState(false);
-
-  const toggleSection = (section: string) => {
-    setSelectedSections((prev) => {
-      if (prev.includes(section)) {
-        return prev.filter((item) => item !== section);
-      }
-      return [...prev, section].sort();
-    });
-  };
 
   const handleSourceTextChange = (value: string) => {
     const trimmedValue = value.slice(0, MAX_SOURCE_TEXT_LENGTH);
@@ -48,10 +29,6 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
       sourceText,
       customerName,
       customerTitle,
-      useCatalogKnowledge: selectedSections.length > 0,
-      catalogSections: selectedSections,
-      strictGrounding: true,
-      enableFallbackRetrieval: true,
     });
   };
 
@@ -146,24 +123,8 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
-          <p className="text-sm font-medium text-[var(--brand-primary)] mb-2">套用電子型錄分區（勾哪個查哪個）</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {CATALOG_SECTION_OPTIONS.map((option) => (
-              <label key={option.section} className="inline-flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                <input
-                  type="checkbox"
-                  checked={selectedSections.includes(option.section)}
-                  onChange={() => toggleSection(option.section)}
-                  className="h-4 w-4 rounded border-[var(--border-default)]"
-                  style={{ accentColor: 'var(--brand-accent)' }}
-                  disabled={isLoading}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-2">未勾選任何分區時，不會查型錄知識。</p>
+        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3 text-xs text-[var(--text-secondary)]">
+          產品推薦檢索固定使用產品清單資料（`product_list_index.json`），不再依賴型錄分區。
         </div>
 
         <button

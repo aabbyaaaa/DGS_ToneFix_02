@@ -30,12 +30,12 @@ const Header: React.FC<HeaderProps> = ({ themeMode, resolvedTheme, onThemeModeCh
           <div className="h-8 w-px bg-[var(--border-default)] mx-1 hidden sm:block"></div>
           <div className="min-w-0">
             <h1 className="text-base sm:text-lg font-bold text-[var(--brand-primary)] tracking-tight flex items-center gap-2 truncate">
-              工程師客服回覆禮貌化工具_雙重來源
+              工程師客服回覆禮貌化工具_產品清單版
               <span className="text-[10px] font-medium text-[var(--brand-primary)] bg-[var(--brand-soft)] px-2 py-0.5 rounded-full border border-[var(--brand-soft-border)]">
                 v1.2
               </span>
             </h1>
-            <p className="text-xs text-[var(--text-muted)] hidden sm:block">雙路檢索、單路輸入（產品清單優先 + 型錄補強）</p>
+            <p className="text-xs text-[var(--text-muted)] hidden sm:block">僅使用產品清單檢索與推薦（最終貨號網址）</p>
           </div>
         </div>
 

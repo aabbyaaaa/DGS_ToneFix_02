@@ -8,24 +8,19 @@ export interface PolishRequest {
   sourceText: string;
   customerName?: string;
   customerTitle?: string;
-  useCatalogKnowledge?: boolean;
-  catalogSections?: string[];
   maxKnowledgeChunks?: number;
-  strictGrounding?: boolean;
-  enableFallbackRetrieval?: boolean;
 }
 
 export type TokenRiskLevel = 'low' | 'medium' | 'high';
 
 export type RecommendationConfidence = 'high' | 'medium' | 'low';
-export type RecommendationSource = 'catalog' | 'product_list' | 'both';
+export type RecommendationSource = 'product_list';
 
 export interface KnowledgeReference {
   source: string;
-  page: number;
+  page?: number;
   excerpt?: string;
   sourceUrl?: string;
-  catalogUrl?: string;
 }
 
 export interface PolishedVariant {
@@ -39,31 +34,25 @@ export interface PolishedVariant {
 export interface PolishResponse {
   variants: PolishedVariant[];
   recommendedProducts: ProductRecommendation[];
-  knowledge?: {
-    retrievalMode: 'dual_merge';
-    enabled: boolean;
-    selectedSections: string[];
-    scopedChunks: number;
-    matchedChunks: number;
+  knowledge: {
+    retrievalMode: 'product_list_only';
+    enabled: true;
+    scopedItems: number;
+    matchedItems: number;
     retrievedTopK: number;
-    sourceStats: {
-      catalogMatched: number;
-      productListMatched: number;
-    };
-    matchedPages: number[];
-    mergedContext: {
+    mergedContext: Array<{
       source: RecommendationSource;
       score: number;
       matchedTerms: string[];
-      page?: number;
-      finalCode?: string;
+      headCode: string;
+      finalCode: string;
       url: string;
       preview: string;
       charCount: number;
-    }[];
+    }>;
     tokenEstimate: {
       inputChars: number;
-      contextChars: number;
+      contextChars: 0;
       estimatedInputTokens: number;
       estimatedOutputTokens: number;
       estimatedTotalTokens: number;
@@ -74,42 +63,19 @@ export interface PolishResponse {
       modelTokens: string[];
       alphaNumTokens: string[];
       chineseTerms: string[];
-      fallbackUsed: boolean;
+      accessoryIntent: boolean;
       noHitReason: string | null;
     };
-    validation: {
-      rejectedProducts: {
-        name: string;
-        page: number;
-        reason: string;
-      }[];
-      acceptedProducts: number;
-    };
-    productList?: {
-      enabled: boolean;
-      fallbackUsed: boolean;
-      matchedItems: number;
-      topItems: {
-        finalCode: string;
-        headCode: string;
-        name: string;
-        sourceLabel: RecommendationSource;
-        score: number;
-        matchedTerms: string[];
-        productUrl: string;
-      }[];
-    };
-    topChunks: {
-      id: string;
-      section?: string;
-      page: number;
-      text: string;
-      sourceUrl: string;
-      catalogUrl: string;
+    topItems: Array<{
+      finalCode: string;
+      headCode: string;
+      name: string;
       score: number;
       matchedTerms: string[];
+      productUrl: string;
+      preview: string;
       charCount: number;
-    }[];
+    }>;
   };
 }
 
@@ -118,24 +84,24 @@ export interface ProductRecommendation {
   name: string;
   models: string[];
   section?: string;
-  page?: number;
   reason: string;
-  catalogUrl?: string;
-  productUrl?: string;
+  productUrl: string;
   evidenceExcerpt: string;
   confidence: RecommendationConfidence;
   tones: Tone[];
-  source: RecommendationSource;
-  finalCode?: string;
-  headCode?: string;
+  source: 'product_list';
+  finalCode: string;
+  headCode: string;
 }
 
 export interface MentionedProduct {
   name: string;
   models: string[];
-  page: number;
+  page?: number;
   reason?: string;
   confidence?: RecommendationConfidence;
+  productUrl?: string;
+  finalCode?: string;
 }
 
 export interface CatalogChunk {

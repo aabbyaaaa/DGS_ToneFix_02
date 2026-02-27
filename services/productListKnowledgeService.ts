@@ -4,15 +4,6 @@ const PRODUCT_LIST_INDEX_PATH = "/knowledge/product_list_index.json";
 const DEFAULT_RETRIEVE_LIMIT = 5;
 const ACCESSORY_HINT_TERMS = ["配件", "耗材", "替換", "電極", "矽膠管", "探頭", "電線", "夾具"];
 
-const SECTION_TO_CLASS3: Record<string, string> = {
-  A: "基礎實驗器材",
-  B: "容器",
-  C: "濾紙試紙",
-  D: "液體處理設備",
-  E: "泛用儀器",
-  F: "公安無塵設備",
-};
-
 let productListCachePromise: Promise<ProductListIndexItem[]> | null = null;
 
 export interface ProductListIndexItem {
@@ -39,10 +30,15 @@ export interface ScoredProductListItem extends ProductListIndexItem {
 }
 
 export interface ProductListRetrievalResult {
-  selectedSections: string[];
   scopedItems: number;
   items: ScoredProductListItem[];
   accessoryIntent: boolean;
+  queryDiagnostics: {
+    modelTokens: string[];
+    alphaNumTokens: string[];
+    chineseTerms: string[];
+    noHitReason: string | null;
+  };
 }
 
 function normalizeForMatch(text: string): string {
@@ -51,17 +47,6 @@ function normalizeForMatch(text: string): string {
 
 function uniqueTokens(tokens: string[]): string[] {
   return [...new Set(tokens)];
-}
-
-function normalizeSections(sections: string[] | undefined): string[] {
-  if (!Array.isArray(sections)) {
-    return [];
-  }
-  return uniqueTokens(
-    sections
-      .map((section) => String(section).trim().toUpperCase())
-      .filter((section) => /^[A-Z]$/.test(section))
-  );
 }
 
 function detectAccessoryIntent(query: string): boolean {
@@ -140,53 +125,45 @@ export async function loadProductListIndex(): Promise<ProductListIndexItem[]> {
 
 export async function retrieveProductListContext(
   query: string,
-  limit = DEFAULT_RETRIEVE_LIMIT,
-  sections: string[] = []
+  limit = DEFAULT_RETRIEVE_LIMIT
 ): Promise<ProductListRetrievalResult> {
   const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_RETRIEVE_LIMIT;
-  const selectedSections = normalizeSections(sections);
   const cleanedQuery = query.trim();
   const accessoryIntent = detectAccessoryIntent(cleanedQuery);
+  const modelTokens = uniqueTokens(getModelLikeTokens(cleanedQuery));
+  const alphaNumTokens = uniqueTokens(getAlphaNumTokens(cleanedQuery));
+  const chineseTerms = uniqueTokens(getChineseTerms(cleanedQuery));
 
-  if (!cleanedQuery || selectedSections.length === 0) {
+  if (!cleanedQuery) {
     return {
-      selectedSections,
       scopedItems: 0,
       items: [],
       accessoryIntent,
+      queryDiagnostics: {
+        modelTokens,
+        alphaNumTokens,
+        chineseTerms,
+        noHitReason: "查詢內容為空，無法進行產品清單檢索。",
+      },
     };
   }
 
   const items = await loadProductListIndex();
   if (items.length === 0) {
     return {
-      selectedSections,
       scopedItems: 0,
       items: [],
       accessoryIntent,
+      queryDiagnostics: {
+        modelTokens,
+        alphaNumTokens,
+        chineseTerms,
+        noHitReason: "產品清單索引為空，請先重建索引。",
+      },
     };
   }
 
-  const allowedClass3 = new Set(
-    selectedSections
-      .map((section) => SECTION_TO_CLASS3[section])
-      .filter(Boolean)
-      .map((label) => normalizeForMatch(label))
-  );
-
-  const scopedItems = items.filter((item) => allowedClass3.has(normalizeForMatch(item.class3)));
-  if (scopedItems.length === 0) {
-    return {
-      selectedSections,
-      scopedItems: 0,
-      items: [],
-      accessoryIntent,
-    };
-  }
-
-  const modelTokens = uniqueTokens(getModelLikeTokens(cleanedQuery));
-  const alphaNumTokens = uniqueTokens(getAlphaNumTokens(cleanedQuery));
-  const chineseTerms = uniqueTokens(getChineseTerms(cleanedQuery));
+  const scopedItems = items;
 
   const lexicalTerms =
     modelTokens.length + alphaNumTokens.length + chineseTerms.length > 0
@@ -229,9 +206,14 @@ export async function retrieveProductListContext(
   }
 
   return {
-    selectedSections,
     scopedItems: scopedItems.length,
     items: deduped,
     accessoryIntent,
+    queryDiagnostics: {
+      modelTokens: lexicalTerms.modelTokens,
+      alphaNumTokens: lexicalTerms.alphaNumTokens,
+      chineseTerms: lexicalTerms.chineseTerms,
+      noHitReason: deduped.length === 0 ? "產品清單無命中項目。" : null,
+    },
   };
 }

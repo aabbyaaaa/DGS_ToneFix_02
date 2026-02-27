@@ -75,19 +75,18 @@ beforeEach(() => {
 });
 
 describe("product list retrieval", () => {
-  it("filters by section and deduplicates by finalCode using top score row", async () => {
-    const result = await retrieveProductListContext("20ml 計數瓶 高分", 5, ["B"]);
+  it("deduplicates by finalCode and keeps highest scored row", async () => {
+    const result = await retrieveProductListContext("20ml 計數瓶 高分", 5);
     expect(result.items.length).toBe(1);
     expect(result.items[0].finalCode).toBe("F1");
     expect(result.items[0].headCode).toBe("H2");
   });
 
   it("excludes accessory by default and includes when accessory intent is present", async () => {
-    const normalQuery = await retrieveProductListContext("計數瓶", 5, ["E"]);
-    expect(normalQuery.items.length).toBe(0);
+    const normalQuery = await retrieveProductListContext("計數瓶", 5);
+    expect(normalQuery.items.some((item) => item.finalCode === "F3")).toBe(false);
 
-    const accessoryQuery = await retrieveProductListContext("請推薦電極配件", 5, ["E"]);
-    expect(accessoryQuery.items.length).toBe(1);
-    expect(accessoryQuery.items[0].finalCode).toBe("F3");
+    const accessoryQuery = await retrieveProductListContext("請推薦電極配件", 5);
+    expect(accessoryQuery.items.some((item) => item.finalCode === "F3")).toBe(true);
   });
 });
