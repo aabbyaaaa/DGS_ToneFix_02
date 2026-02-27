@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { PolishRequest } from '../types';
-import { Sparkles, Trash2 } from 'lucide-react';
+import { ImagePlus, LoaderCircle, Sparkles, Trash2, Upload } from 'lucide-react';
+import { extractTextFromImage } from '../services/ocrService';
 
 const MAX_SOURCE_TEXT_LENGTH = 1000;
 const SOURCE_TEXT_WARNING_THRESHOLD = 900;
+const ACCEPTED_IMAGE_TYPES = 'image/png,image/jpeg,image/jpg,image/webp';
 
 interface InputFormProps {
   onSubmit: (data: PolishRequest) => void;
@@ -15,11 +17,86 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
   const [customerName, setCustomerName] = useState('');
   const [customerTitle, setCustomerTitle] = useState('');
   const [isSourceTextTruncated, setIsSourceTextTruncated] = useState(false);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [lastOcrImageName, setLastOcrImageName] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleSourceTextChange = (value: string) => {
     const trimmedValue = value.slice(0, MAX_SOURCE_TEXT_LENGTH);
     setSourceText(trimmedValue);
     setIsSourceTextTruncated(value.length > MAX_SOURCE_TEXT_LENGTH);
+  };
+
+  const appendOcrText = (ocrText: string) => {
+    const normalizedOcrText = ocrText.trim();
+    if (!normalizedOcrText) {
+      return;
+    }
+    setSourceText((current) => {
+      const combined = current.trim() ? `${current.trimEnd()}\n\n${normalizedOcrText}` : normalizedOcrText;
+      setIsSourceTextTruncated(combined.length > MAX_SOURCE_TEXT_LENGTH);
+      return combined.slice(0, MAX_SOURCE_TEXT_LENGTH);
+    });
+  };
+
+  const runOcr = async (file: File, sourceLabel: string) => {
+    setOcrError(null);
+    setOcrStatus('OCR 辨識中...');
+    setIsOcrLoading(true);
+
+    try {
+      const result = await extractTextFromImage(file);
+      appendOcrText(result.text);
+      setLastOcrImageName(file.name || sourceLabel);
+      setOcrStatus(`OCR 完成：新增 ${result.charCount} 字`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'OCR 失敗，請稍後再試';
+      setOcrError(message);
+      setOcrStatus(null);
+    } finally {
+      setIsOcrLoading(false);
+    }
+  };
+
+  const handleImageSelect = (file: File | null, sourceLabel: string) => {
+    if (!file) {
+      return;
+    }
+    void runOcr(file, sourceLabel);
+  };
+
+  const handleChooseFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? []);
+    handleImageSelect(file ?? null, '上傳圖片');
+    event.target.value = '';
+  };
+
+  const handleTextareaPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(event.clipboardData.items ?? []);
+    const imageItem = items.find((item) => item.type.startsWith('image/'));
+    if (!imageItem) {
+      return;
+    }
+    const file = imageItem.getAsFile();
+    if (!file) {
+      return;
+    }
+    event.preventDefault();
+    handleImageSelect(file, '貼上圖片');
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragOver(false);
+    const [file] = Array.from(event.dataTransfer.files ?? []);
+    handleImageSelect(file ?? null, '拖拉圖片');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -37,6 +114,10 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
     setCustomerName('');
     setCustomerTitle('');
     setIsSourceTextTruncated(false);
+    setIsOcrLoading(false);
+    setOcrStatus(null);
+    setOcrError(null);
+    setLastOcrImageName(null);
   };
 
   const sourceTextLength = sourceText.length;
@@ -109,6 +190,7 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
             id="sourceText"
             value={sourceText}
             onChange={(e) => handleSourceTextChange(e.target.value)}
+            onPaste={handleTextareaPaste}
             maxLength={MAX_SOURCE_TEXT_LENGTH}
             placeholder="請貼上您要回覆的技術內容。例如：
 關於 ABC-1234 的問題，我們檢測後發現是電壓異常(240V)。建議更換保險絲，規格為 5A。"
@@ -123,15 +205,58 @@ const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
           </p>
         </div>
 
+        <div
+          className={`rounded-lg border border-dashed p-3 transition-colors ${
+            isDragOver ? 'border-[var(--brand-accent)] bg-[var(--brand-soft)]' : 'border-[var(--border-default)] bg-[var(--surface-secondary)]'
+          }`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleChooseFile}
+              disabled={isLoading || isOcrLoading}
+              className="inline-flex items-center gap-1 rounded-md border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              上傳圖片 OCR
+            </button>
+            <span className="text-xs text-[var(--text-muted)]">也可把圖片直接貼到上方文字框，或拖拉到此區</span>
+          </div>
+          <input ref={fileInputRef} type="file" accept={ACCEPTED_IMAGE_TYPES} onChange={handleFileChange} className="hidden" />
+
+          <div className="mt-2 min-h-5 text-xs">
+            {isOcrLoading && (
+              <p className="flex items-center gap-1 text-[var(--brand-primary)]">
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                OCR 辨識中，請稍候...
+              </p>
+            )}
+            {!isOcrLoading && ocrStatus && (
+              <p className="flex items-center gap-1 text-emerald-600">
+                <ImagePlus className="h-3.5 w-3.5" />
+                {ocrStatus}
+                {lastOcrImageName ? `（${lastOcrImageName}）` : ''}
+              </p>
+            )}
+            {ocrError && <p className="text-red-500">{ocrError}</p>}
+          </div>
+        </div>
+
         <div className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3 text-xs text-[var(--text-secondary)]">
           產品推薦檢索固定使用產品清單資料（`product_list_index.json`），不再依賴型錄分區。
         </div>
 
         <button
           type="submit"
-          disabled={isLoading || !sourceText.trim()}
+          disabled={isLoading || isOcrLoading || !sourceText.trim()}
           className={`w-full py-3 px-4 rounded-lg text-white font-medium flex items-center justify-center space-x-2 transition-all shadow-md hover:shadow-lg ${
-            isLoading || !sourceText.trim() ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'submit-btn active:transform active:scale-[0.99]'
+            isLoading || isOcrLoading || !sourceText.trim() ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'submit-btn active:transform active:scale-[0.99]'
           }`}
         >
           {isLoading ? (

@@ -11,6 +11,12 @@ export interface PolishRequest {
   maxKnowledgeChunks?: number;
 }
 
+export interface OcrExtractResponse {
+  text: string;
+  charCount: number;
+  model?: string;
+}
+
 export type TokenRiskLevel = 'low' | 'medium' | 'high';
 
 export type RecommendationConfidence = 'high' | 'medium' | 'low';
