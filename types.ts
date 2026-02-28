@@ -8,23 +8,25 @@ export interface PolishRequest {
   sourceText: string;
   customerName?: string;
   customerTitle?: string;
-  useCatalogKnowledge?: boolean;
-  catalogSections?: string[];
   maxKnowledgeChunks?: number;
-  strictGrounding?: boolean;
-  enableFallbackRetrieval?: boolean;
+}
+
+export interface OcrExtractResponse {
+  text: string;
+  charCount: number;
+  model?: string;
 }
 
 export type TokenRiskLevel = 'low' | 'medium' | 'high';
 
 export type RecommendationConfidence = 'high' | 'medium' | 'low';
+export type RecommendationSource = 'product_list';
 
 export interface KnowledgeReference {
   source: string;
-  page: number;
+  page?: number;
   excerpt?: string;
   sourceUrl?: string;
-  catalogUrl?: string;
 }
 
 export interface PolishedVariant {
@@ -38,16 +40,25 @@ export interface PolishedVariant {
 export interface PolishResponse {
   variants: PolishedVariant[];
   recommendedProducts: ProductRecommendation[];
-  knowledge?: {
-    enabled: boolean;
-    selectedSections: string[];
-    scopedChunks: number;
-    matchedChunks: number;
+  knowledge: {
+    retrievalMode: 'product_list_only';
+    enabled: true;
+    scopedItems: number;
+    matchedItems: number;
     retrievedTopK: number;
-    matchedPages: number[];
+    mergedContext: Array<{
+      source: RecommendationSource;
+      score: number;
+      matchedTerms: string[];
+      headCode: string;
+      finalCode: string;
+      url: string;
+      preview: string;
+      charCount: number;
+    }>;
     tokenEstimate: {
       inputChars: number;
-      contextChars: number;
+      contextChars: 0;
       estimatedInputTokens: number;
       estimatedOutputTokens: number;
       estimatedTotalTokens: number;
@@ -58,28 +69,19 @@ export interface PolishResponse {
       modelTokens: string[];
       alphaNumTokens: string[];
       chineseTerms: string[];
-      fallbackUsed: boolean;
+      accessoryIntent: boolean;
       noHitReason: string | null;
     };
-    validation: {
-      rejectedProducts: {
-        name: string;
-        page: number;
-        reason: string;
-      }[];
-      acceptedProducts: number;
-    };
-    topChunks: {
-      id: string;
-      section?: string;
-      page: number;
-      text: string;
-      sourceUrl: string;
-      catalogUrl: string;
+    topItems: Array<{
+      finalCode: string;
+      headCode: string;
+      name: string;
       score: number;
       matchedTerms: string[];
+      productUrl: string;
+      preview: string;
       charCount: number;
-    }[];
+    }>;
   };
 }
 
@@ -87,21 +89,25 @@ export interface ProductRecommendation {
   rank: 1 | 2 | 3;
   name: string;
   models: string[];
-  section: string;
-  page: number;
+  section?: string;
   reason: string;
-  catalogUrl: string;
+  productUrl: string;
   evidenceExcerpt: string;
   confidence: RecommendationConfidence;
   tones: Tone[];
+  source: 'product_list';
+  finalCode: string;
+  headCode: string;
 }
 
 export interface MentionedProduct {
   name: string;
   models: string[];
-  page: number;
+  page?: number;
   reason?: string;
   confidence?: RecommendationConfidence;
+  productUrl?: string;
+  finalCode?: string;
 }
 
 export interface CatalogChunk {

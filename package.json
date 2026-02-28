@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "build:product-list-index": "node scripts/buildProductListIndex.mjs",
     "eval:retrieval": "node scripts/evalRetrieval.mjs",
     "extract:catalog": "node scripts/extractCatalogPages.mjs --start 178 --end 229 --section B",
     "extract:catalog:a": "node scripts/extractCatalogPages.mjs --start 14 --end 176 --section A",
@@ -26,8 +27,10 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "playwright": "^1.58.2",
     "typescript": "^5.2.2",
     "vite": "^5.1.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "xlsx": "^0.18.5"
   }
 }
