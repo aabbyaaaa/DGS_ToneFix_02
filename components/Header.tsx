@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Cpu, Sun, Moon, Monitor } from 'lucide-react';
+import { Zap, Cpu, Sun, Moon, Monitor, BookOpenText } from 'lucide-react';
 import { MODEL_NAME } from '../services/geminiService';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -32,7 +32,7 @@ const Header: React.FC<HeaderProps> = ({ themeMode, resolvedTheme, onThemeModeCh
             <h1 className="text-base sm:text-lg font-bold text-[var(--brand-primary)] tracking-tight flex items-center gap-2 truncate">
               工程師客服回覆禮貌化工具_產品清單版
               <span className="text-[10px] font-medium text-[var(--brand-primary)] bg-[var(--brand-soft)] px-2 py-0.5 rounded-full border border-[var(--brand-soft-border)]">
-                v1.2
+                v2.0
               </span>
             </h1>
             <p className="text-xs text-[var(--text-muted)] hidden sm:block">
@@ -41,37 +41,50 @@ const Header: React.FC<HeaderProps> = ({ themeMode, resolvedTheme, onThemeModeCh
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-secondary)] p-1">
-            {themeOptions.map((option) => {
-              const selected = themeMode === option.mode;
-              return (
-                <button
-                  key={option.mode}
-                  type="button"
-                  onClick={() => onThemeModeChange(option.mode)}
-                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
-                  style={{
-                    background: selected ? 'var(--brand-soft)' : 'transparent',
-                    color: selected ? 'var(--brand-primary)' : 'var(--text-muted)',
-                  }}
-                >
-                  {option.icon}
-                  <span className="hidden sm:inline">{option.label}</span>
-                </button>
-              );
-            })}
+        <div className="flex items-start gap-2 min-w-[370px]">
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-secondary)] p-1">
+              {themeOptions.map((option) => {
+                const selected = themeMode === option.mode;
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    onClick={() => onThemeModeChange(option.mode)}
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+                    style={{
+                      background: selected ? 'var(--brand-soft)' : 'transparent',
+                      color: selected ? 'var(--brand-primary)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {option.icon}
+                    <span className="hidden sm:inline">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center text-[10px] font-medium text-[var(--text-muted)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-full border border-[var(--border-default)]">
+              <Cpu className="w-3 h-3 mr-1" />
+              <span>Model: {MODEL_NAME}</span>
+            </div>
+
+            <div className="flex items-center text-xs text-[var(--text-muted)]">
+              <Zap className="h-3 w-3 mr-1 text-[#facc15] fill-[#facc15] stroke-[#facc15]" />
+              <span className="hidden sm:inline">如有問題請洽分機124 陳宛均Abby</span>
+            </div>
           </div>
 
-          <div className="flex items-center text-[10px] font-medium text-[var(--text-muted)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-full border border-[var(--border-default)]">
-            <Cpu className="w-3 h-3 mr-1" />
-            <span>Model: {MODEL_NAME}</span>
-          </div>
-
-          <div className="flex items-center text-xs text-[var(--text-muted)]">
-            <Zap className="h-3 w-3 mr-1 text-[#facc15] fill-[#facc15] stroke-[#facc15]" />
-            <span className="hidden sm:inline">如有問題請洽分機124 陳宛均Abby</span>
-          </div>
+          <a
+            href="/usage-guide.html"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex flex-col items-center justify-center w-[88px] h-[66px] text-[11px] font-semibold text-[var(--brand-primary)] bg-[var(--brand-soft)] rounded-lg border border-[var(--brand-soft-border)] hover:opacity-90 transition-opacity leading-tight mt-[2px] flex-shrink-0"
+            title="使用說明"
+          >
+            <BookOpenText className="w-4.5 h-4.5 mb-1" />
+            <span>使用說明</span>
+          </a>
         </div>
       </div>
     </header>

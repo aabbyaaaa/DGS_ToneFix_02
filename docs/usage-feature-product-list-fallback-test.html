@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>工具使用說明｜feature/product-list-fallback-test</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-border: #334155;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --brand: #22d3ee;
+        --ok: #86efac;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        background: linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+        color: var(--text);
+        line-height: 1.7;
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 20px 56px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .sub {
+        margin: 0 0 24px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      section {
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 18px;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 20px;
+        color: var(--brand);
+      }
+
+      p {
+        margin: 8px 0;
+      }
+
+      ul,
+      ol {
+        margin: 8px 0 8px 22px;
+      }
+
+      li {
+        margin: 6px 0;
+      }
+
+      .img-card {
+        margin-top: 12px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #3b465a;
+        background: #0b1220;
+      }
+
+      .img-card img {
+        width: 100%;
+        display: block;
+      }
+
+      .img-cap {
+        padding: 8px 12px;
+        font-size: 13px;
+        color: var(--muted);
+        border-top: 1px solid #3b465a;
+      }
+
+      .note {
+        background: rgba(34, 211, 238, 0.08);
+        border: 1px solid rgba(34, 211, 238, 0.3);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+
+      .ok {
+        color: var(--ok);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>工程師客服回覆工具 使用說明</h1>
+      <p class="sub">
+        版本基準：<code>feature/product-list-fallback-test</code>
+      </p>
+
+      <section>
+        <h2>1. 介面總覽</h2>
+        <ul>
+          <li>上方是輸入列：客戶姓氏/稱謂、技術文字、OCR、開始轉換。</li>
+          <li>中間是三種回覆卡：精簡、標準、正式。</li>
+          <li>右下角是剪貼區 FAB，點擊可展開右側抽屜。</li>
+        </ul>
+        <div class="img-card">
+          <img src="./usage-images/01-home.png" alt="首頁介面總覽" />
+          <div class="img-cap">圖 1：首頁介面總覽</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>2. 產生三種回覆</h2>
+        <ol>
+          <li>在輸入框貼上技術內容（可搭配 OCR）。</li>
+          <li>按「開始轉換」。</li>
+          <li>系統會依序產生：精簡 → 標準 → 正式。</li>
+        </ol>
+        <div class="img-card">
+          <img src="./usage-images/02-generated-variants.png" alt="產生三種回覆卡片" />
+          <div class="img-cap">圖 2：產生三種回覆（精簡、標準、正式）</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. 加入剪貼區與重組內容</h2>
+        <ol>
+          <li>直接點任一段落或列點，即可加入剪貼區。</li>
+          <li>抽屜會自動展開，便於立即確認。</li>
+          <li>可拖曳排序、編輯文字、刪除單段。</li>
+        </ol>
+        <p class="note">
+          目前「獨特內容標註」採 <strong>列點級</strong> 比對（更精準），
+          並且「工程師的建議如下：」後會保留空一行。
+        </p>
+        <div class="img-card">
+          <img src="./usage-images/03-clipboard-drawer.png" alt="剪貼區抽屜操作" />
+          <div class="img-cap">圖 3：剪貼區抽屜（加入、排序、編輯）</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>4. Copy All 一鍵複製</h2>
+        <ul>
+          <li>在剪貼區右下方按 <code>Copy All</code>。</li>
+          <li>成功會顯示 <span class="ok">Copied!</span> 狀態。</li>
+        </ul>
+        <div class="img-card">
+          <img src="./usage-images/04-copy-all.png" alt="Copy All 成功狀態" />
+          <div class="img-cap">圖 4：Copy All 成功狀態</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>5. 常見問題</h2>
+        <p><strong>Q：</strong>出現 <code>Failed to fetch</code> 怎麼辦？</p>
+        <ul>
+          <li>有可能是LLM過期或是API沒錢，請直接跟分機124 陳宛均Abby聯繫即可。</li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>
