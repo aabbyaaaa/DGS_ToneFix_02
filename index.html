@@ -65,6 +65,8 @@
         background-attachment: fixed;
         color: var(--text-primary);
         margin: 0;
+        height: 100vh;
+        overflow: hidden;
       }
 
       #root {
@@ -229,6 +231,15 @@
       .sel-popup:hover {
         background: var(--cta-bg);
         color: white;
+      }
+
+      .reply-scroll::-webkit-scrollbar {
+        width: 4px;
+      }
+
+      .reply-scroll::-webkit-scrollbar-thumb {
+        background: var(--border-default);
+        border-radius: 4px;
       }
     </style>
     <script type="importmap">

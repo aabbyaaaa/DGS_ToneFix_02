@@ -1,30 +1,217 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardList, AlertCircle } from "lucide-react";
 import Header, { ThemeMode } from "./components/Header";
 import InputForm from "./components/InputForm";
 import ClipboardComposer, { ComposerBlock } from "./components/ClipboardComposer";
 import {
   EmptyState,
+  isBulletLine,
   ManualHighlightRule,
+  normalizeForManualMatch,
+  splitVariantParagraphs,
   VariantCard,
 } from "./components/OutputDisplay";
 import { polishText } from "./services/geminiService";
-import { PolishRequest, PolishResponse, Tone, TokenRiskLevel } from "./types";
-import { AlertCircle } from "lucide-react";
+import { PolishRequest, PolishResponse, Tone } from "./types";
 
 const THEME_MODE_STORAGE_KEY = "dgs-theme-mode";
 
-const MANUAL_HIGHLIGHT_RULES: Record<Tone, ManualHighlightRule[]> = {
-  [Tone.STANDARD]: [
-    { match: "油霧過濾器", tag: "STD: filter urgency" },
-  ],
-  [Tone.CONCISE]: [
-    { match: "庫存", tag: "CON: inventory note" },
-    { match: "出貨", tag: "CON: lead time" },
-  ],
-  [Tone.FORMAL]: [
-    { match: "更換週期", tag: "FML: maintenance emphasis" },
-  ],
+const AUTO_UNIQUE_TAG: Record<Tone, string> = {
+  [Tone.STANDARD]: "STD: auto unique",
+  [Tone.CONCISE]: "CON: auto unique",
+  [Tone.FORMAL]: "FML: auto unique",
 };
+
+const UNIQUE_SIMILARITY_THRESHOLD = 0.28;
+const MIN_UNIQUE_PARAGRAPH_LENGTH = 14;
+const MAX_UNIQUE_HIGHLIGHTS_PER_TONE = 2;
+
+const RECOMMENDATION_BLOCK_PATTERN =
+  /(推薦產品|https?:\/\/|catalog|型錄參考|來源：|source link)/i;
+const COURTESY_ONLY_PATTERN =
+  /(您好|感謝|敬啟|敬祝|順頌|歡迎|聯繫|來函|垂詢|竭誠|商祺)/;
+const MODEL_PATTERN = /\b[A-Z]{1,}[A-Z0-9-]{2,}\b/;
+const NUMBER_OR_UNIT_PATTERN =
+  /(\d+(?:\.\d+)?\s?(?:pH|Torr|mbar|bar|Pa|L\/min|ml|min|kg|V|A|Hz|RPM|%|°C|℃))/i;
+const FACT_SIGNAL_PATTERN =
+  /(耐酸鹼|真空|抽氣|化學|材質|PTFE|腐蝕|甲醇|溶劑|規格|流量|極限|風險|更換週期|污染|冷凝|濾器|庫存|出貨|交期|操作環境|真空度)/;
+
+function createEmptyHighlightRules(): Record<Tone, ManualHighlightRule[]> {
+  return {
+    [Tone.STANDARD]: [],
+    [Tone.CONCISE]: [],
+    [Tone.FORMAL]: [],
+  };
+}
+
+function createEmptyCandidateMap(): Record<
+  Tone,
+  Array<{ raw: string; normalized: string; grams: Set<string>; index: number }>
+> {
+  return {
+    [Tone.STANDARD]: [],
+    [Tone.CONCISE]: [],
+    [Tone.FORMAL]: [],
+  };
+}
+
+function buildBigrams(text: string): Set<string> {
+  if (text.length < 2) {
+    return new Set(text ? [text] : []);
+  }
+
+  const grams = new Set<string>();
+  for (let index = 0; index < text.length - 1; index += 1) {
+    grams.add(text.slice(index, index + 2));
+  }
+  return grams;
+}
+
+function calcJaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) {
+    return 0;
+  }
+
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) {
+      intersection += 1;
+    }
+  }
+
+  const union = a.size + b.size - intersection;
+  return union <= 0 ? 0 : intersection / union;
+}
+
+function isHighValueUniqueCandidate(raw: string): boolean {
+  const text = raw.trim();
+  if (!text || RECOMMENDATION_BLOCK_PATTERN.test(text)) {
+    return false;
+  }
+
+  const hasModel = MODEL_PATTERN.test(text);
+  const hasNumberOrUnit = NUMBER_OR_UNIT_PATTERN.test(text);
+  const hasFactSignal = FACT_SIGNAL_PATTERN.test(text);
+  const hasCourtesySignal = COURTESY_ONLY_PATTERN.test(text);
+
+  if (hasCourtesySignal && !hasNumberOrUnit && !hasFactSignal) {
+    return false;
+  }
+
+  if (hasNumberOrUnit || hasFactSignal) {
+    return true;
+  }
+
+  return hasModel && hasFactSignal;
+}
+
+function buildAutoUniqueRules(
+  variants: PolishResponse["variants"] | undefined
+): Record<Tone, ManualHighlightRule[]> {
+  if (!variants || variants.length === 0) {
+    return createEmptyHighlightRules();
+  }
+
+  const tones: Tone[] = [Tone.STANDARD, Tone.CONCISE, Tone.FORMAL];
+  const candidatesByTone = tones.reduce<
+    Record<
+      Tone,
+      Array<{ raw: string; normalized: string; grams: Set<string>; index: number }>
+    >
+  >(
+    (accumulator, tone) => {
+      const variant = variants.find((item) => item.tone === tone);
+      const paragraphs = variant ? splitVariantParagraphs(variant.content) : [];
+
+      accumulator[tone] = paragraphs
+        .map((paragraph, index) => {
+          const normalized = normalizeForManualMatch(paragraph);
+          return {
+            raw: paragraph,
+            normalized,
+            grams: buildBigrams(normalized),
+            index,
+          };
+        })
+        .filter(
+          (item) =>
+            isBulletLine(item.raw) &&
+            item.normalized.length >= MIN_UNIQUE_PARAGRAPH_LENGTH &&
+            isHighValueUniqueCandidate(item.raw)
+        );
+
+      return accumulator;
+    },
+    createEmptyCandidateMap()
+  );
+
+  const rules = createEmptyHighlightRules();
+
+  tones.forEach((tone) => {
+    const currentCandidates = candidatesByTone[tone];
+    const otherCandidates = tones
+      .filter((otherTone) => otherTone !== tone)
+      .flatMap((otherTone) => candidatesByTone[otherTone]);
+
+    const uniqueCandidates: Array<{
+      raw: string;
+      normalized: string;
+      highestSimilarity: number;
+      index: number;
+    }> = [];
+
+    currentCandidates.forEach((candidate) => {
+      let highestSimilarity = 0;
+
+      for (const other of otherCandidates) {
+        if (candidate.normalized === other.normalized) {
+          highestSimilarity = 1;
+          break;
+        }
+
+        const similarity = calcJaccardSimilarity(candidate.grams, other.grams);
+        if (similarity > highestSimilarity) {
+          highestSimilarity = similarity;
+        }
+      }
+
+      if (highestSimilarity < UNIQUE_SIMILARITY_THRESHOLD) {
+        uniqueCandidates.push({
+          raw: candidate.raw,
+          normalized: candidate.normalized,
+          highestSimilarity,
+          index: candidate.index,
+        });
+      }
+    });
+
+    const selected = uniqueCandidates
+      .sort((a, b) => {
+        if (a.highestSimilarity !== b.highestSimilarity) {
+          return a.highestSimilarity - b.highestSimilarity;
+        }
+        if (b.normalized.length !== a.normalized.length) {
+          return b.normalized.length - a.normalized.length;
+        }
+        return a.index - b.index;
+      })
+      .slice(0, MAX_UNIQUE_HIGHLIGHTS_PER_TONE);
+
+    const seen = new Set<string>();
+    selected.forEach((item) => {
+      if (seen.has(item.normalized)) {
+        return;
+      }
+      seen.add(item.normalized);
+      rules[tone].push({
+        match: item.raw,
+        tag: AUTO_UNIQUE_TAG[tone],
+      });
+    });
+  });
+
+  return rules;
+}
 
 function isThemeMode(value: string | null): value is ThemeMode {
   return value === "light" || value === "dark" || value === "system";
@@ -32,9 +219,17 @@ function isThemeMode(value: string | null): value is ThemeMode {
 
 function resolveTheme(mode: ThemeMode): "light" | "dark" {
   if (mode === "system") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
   }
   return mode;
+}
+
+function toneTitle(tone: Tone): string {
+  if (tone === Tone.STANDARD) return "標準回覆 (Standard)";
+  if (tone === Tone.CONCISE) return "精簡回覆 (Concise)";
+  return "正式回覆 (Formal)";
 }
 
 const App: React.FC = () => {
@@ -56,7 +251,12 @@ const App: React.FC = () => {
     return resolveTheme(isThemeMode(stored) ? stored : "dark");
   });
   const [composerBlocks, setComposerBlocks] = useState<ComposerBlock[]>([]);
+  const [isClipboardOpen, setIsClipboardOpen] = useState(false);
   const blockIdRef = useRef(0);
+  const autoUniqueHighlightRules = useMemo(
+    () => buildAutoUniqueRules(response?.variants),
+    [response?.variants]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -64,7 +264,6 @@ const App: React.FC = () => {
     }
 
     const root = window.document.documentElement;
-
     const applyTheme = () => {
       const theme = resolveTheme(themeMode);
       root.setAttribute("data-theme", theme);
@@ -115,39 +314,24 @@ const App: React.FC = () => {
     }
   };
 
-  const getVariant = (tone: Tone) => response?.variants.find((variant) => variant.tone === tone);
-  const standardVariant = getVariant(Tone.STANDARD);
-  const conciseVariant = getVariant(Tone.CONCISE);
-  const formalVariant = getVariant(Tone.FORMAL);
-  const recommendations = response?.recommendedProducts ?? [];
-
-  const riskBadgeClass = useMemo(
-    () => (riskLevel: TokenRiskLevel) => {
-      if (riskLevel === "high") return "bg-red-100 text-red-700 border-red-200";
-      if (riskLevel === "medium") return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      return "bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border-default)]";
-    },
-    []
-  );
-
-  const confidenceBadgeClass = useMemo(
-    () => (confidence: "high" | "medium" | "low") => {
-      if (confidence === "high") return "bg-green-100 text-green-700 border-green-200";
-      if (confidence === "medium") return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      return "bg-[var(--surface-secondary)] text-[var(--text-muted)] border-[var(--border-default)]";
-    },
-    []
-  );
+  const getVariant = (tone: Tone) =>
+    response?.variants.find((variant) => variant.tone === tone);
 
   const addParagraphToComposer = (tone: Tone, paragraph: string) => {
     const text = paragraph.trim();
     if (!text) return;
     blockIdRef.current += 1;
-    setComposerBlocks((prev) => [...prev, { id: `block-${blockIdRef.current}`, tone, text }]);
+    setComposerBlocks((prev) => [
+      ...prev,
+      { id: `block-${blockIdRef.current}`, tone, text },
+    ]);
+    setIsClipboardOpen(true);
   };
 
   const handleUpdateComposerBlock = (id: string, value: string) => {
-    setComposerBlocks((prev) => prev.map((block) => (block.id === id ? { ...block, text: value } : block)));
+    setComposerBlocks((prev) =>
+      prev.map((block) => (block.id === id ? { ...block, text: value } : block))
+    );
   };
 
   const handleRemoveComposerBlock = (id: string) => {
@@ -168,7 +352,6 @@ const App: React.FC = () => {
       ) {
         return prev;
       }
-
       const next = [...prev];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
@@ -176,152 +359,113 @@ const App: React.FC = () => {
     });
   };
 
-  return (
-    <div className="min-h-screen flex flex-col text-[var(--text-primary)]">
-      <Header themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} />
+  const renderReplyCards = () => {
+    const tones: Tone[] = [Tone.CONCISE, Tone.STANDARD, Tone.FORMAL];
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    return tones.map((tone) => {
+      const variant = getVariant(tone);
+      if (!variant) {
+        return (
+          <div
+            key={tone}
+            className="rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--surface-primary)] p-6 flex items-center justify-center min-h-0"
+          >
+            <p className="text-sm text-[var(--text-muted)]">
+              {toneTitle(tone)} 尚未生成
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <VariantCard
+          key={tone}
+          variant={variant}
+          className="h-full min-h-0"
+          manualHighlightRules={autoUniqueHighlightRules[tone]}
+          onAddParagraph={addParagraphToComposer}
+        />
+      );
+    });
+  };
+
+  return (
+    <div className="min-h-screen h-screen flex flex-col text-[var(--text-primary)] overflow-hidden">
+      <Header
+        themeMode={themeMode}
+        resolvedTheme={resolvedTheme}
+        onThemeModeChange={setThemeMode}
+      />
+
+      <main className="relative flex-1 min-h-0 px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-3 overflow-hidden">
         {error && (
           <div
-            className="mb-6 border px-4 py-3 rounded-lg flex items-center theme-panel"
-            style={{ background: "var(--danger-surface)", borderColor: "var(--danger-border)", color: "var(--danger-text)" }}
+            className="border px-4 py-3 rounded-lg flex items-center theme-panel flex-shrink-0"
+            style={{
+              background: "var(--danger-surface)",
+              borderColor: "var(--danger-border)",
+              color: "var(--danger-text)",
+            }}
           >
             <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 pb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-full">
-              <InputForm onSubmit={handlePolishSubmit} isLoading={isLoading} />
+        <div className="flex-shrink-0">
+          <InputForm onSubmit={handlePolishSubmit} isLoading={isLoading} />
+        </div>
+
+        <section className="flex-1 min-h-0">
+          {response ? (
+            <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {renderReplyCards()}
             </div>
+          ) : (
+            <EmptyState />
+          )}
+        </section>
 
-            <div className="h-full">
-              {standardVariant ? (
-                <VariantCard
-                  variant={standardVariant}
-                  manualHighlightRules={MANUAL_HIGHLIGHT_RULES[Tone.STANDARD]}
-                  onAddParagraph={addParagraphToComposer}
-                />
-              ) : (
-                <EmptyState />
-              )}
-            </div>
+        <button
+          type="button"
+          onClick={() => setIsClipboardOpen((prev) => !prev)}
+          className="absolute right-5 bottom-5 z-50 w-16 h-16 rounded-full bg-[var(--cta-bg)] hover:bg-[var(--cta-bg-hover)] text-white shadow-xl flex items-center justify-center transition-transform hover:scale-105"
+          title="開啟剪貼區"
+        >
+          <ClipboardList className="w-6 h-6" />
+          {composerBlocks.length > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-[var(--bg-body)]">
+              {composerBlocks.length}
+            </span>
+          )}
+        </button>
 
-            {response && (
-              <>
-                <div className="h-full">
-                  {conciseVariant && (
-                    <VariantCard
-                      variant={conciseVariant}
-                      manualHighlightRules={MANUAL_HIGHLIGHT_RULES[Tone.CONCISE]}
-                      onAddParagraph={addParagraphToComposer}
-                    />
-                  )}
-                </div>
-                <div className="h-full">
-                  {formalVariant && (
-                    <VariantCard
-                      variant={formalVariant}
-                      manualHighlightRules={MANUAL_HIGHLIGHT_RULES[Tone.FORMAL]}
-                      onAddParagraph={addParagraphToComposer}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+        <div
+          className={`absolute inset-0 z-30 bg-black/35 transition-opacity duration-200 ${
+            isClipboardOpen
+              ? "opacity-100 pointer-events-auto"
+              : "opacity-0 pointer-events-none"
+          }`}
+          onClick={() => setIsClipboardOpen(false)}
+        />
 
-          <div className="h-full xl:sticky xl:top-24 self-start">
+        <aside
+          className={`absolute top-0 right-0 bottom-0 z-40 w-[340px] max-w-full transform transition-transform duration-300 ease-out ${
+            isClipboardOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="h-full border-l border-[var(--border-default)] bg-[var(--surface-primary)] shadow-2xl">
             <ClipboardComposer
               blocks={composerBlocks}
               onClear={handleClearComposer}
               onRemoveBlock={handleRemoveComposerBlock}
               onUpdateBlock={handleUpdateComposerBlock}
               onReorderBlocks={handleReorderComposerBlocks}
+              onClose={() => setIsClipboardOpen(false)}
+              drawerMode
             />
           </div>
-        </div>
-
-        {response && (
-          <div className="mb-4 rounded-lg border px-4 py-3 text-sm theme-panel" style={{ borderColor: "var(--brand-soft-border)", background: "var(--brand-soft)", color: "var(--brand-primary)" }}>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span>檢索模式：{response.knowledge.retrievalMode}</span>
-              <span>知識來源：產品清單（JSON）</span>
-              <span>可檢索商品：{response.knowledge.scopedItems}</span>
-              <span>命中商品：{response.knowledge.matchedItems}</span>
-              <span>TopK：{response.knowledge.retrievedTopK}</span>
-              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${riskBadgeClass(response.knowledge.tokenEstimate.riskLevel)}`}>
-                ~{response.knowledge.tokenEstimate.estimatedTotalTokens} tokens ({response.knowledge.tokenEstimate.riskLevel})
-              </span>
-            </div>
-            <div>
-              配件意圖：{response.knowledge.queryDiagnostics.accessoryIntent ? "是" : "否"}，未命中說明：
-              {response.knowledge.queryDiagnostics.noHitReason ?? "無"}
-            </div>
-            <div>
-              input chars：{response.knowledge.tokenEstimate.inputChars}，input tokens：
-              {response.knowledge.tokenEstimate.estimatedInputTokens}
-            </div>
-            {response.knowledge.tokenEstimate.warning && <div className="mt-2 text-red-600 font-medium">{response.knowledge.tokenEstimate.warning}</div>}
-          </div>
-        )}
-
-        {response && (
-          <div className="mb-6 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] p-4 theme-panel">
-            <h3 className="text-sm font-semibold text-[var(--brand-primary)] mb-3">推薦產品卡（產品清單）</h3>
-            {recommendations.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">本次未產生可追溯推薦卡。</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {recommendations.map((item) => (
-                  <div key={`${item.rank}-${item.name}-${item.finalCode}`} className="rounded-lg border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
-                    <div className="flex items-center justify-between mb-2 gap-2">
-                      <p className="text-sm font-semibold text-[var(--brand-primary)]">{item.name}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${confidenceBadgeClass(item.confidence)}`}>{item.confidence}</span>
-                    </div>
-                    <p className="text-xs text-[var(--text-secondary)] mb-1">最終貨號：{item.finalCode}</p>
-                    <p className="text-xs text-[var(--text-secondary)] mb-1">帶頭貨號：{item.headCode}</p>
-                    <p className="text-xs text-[var(--text-secondary)] mb-1">推薦原因：{item.reason}</p>
-                    <p className="text-xs text-[var(--text-muted)] mb-2">命中證據：{item.evidenceExcerpt || "無"}</p>
-                    <a href={item.productUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-accent)] hover:underline">
-                      來源：產品清單最終貨號網址
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {response && (
-          <details className="mb-6 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] theme-panel" open>
-            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-[var(--brand-primary)]">Debug 面板：產品清單命中（TopK）</summary>
-            <div className="border-t border-[var(--border-default)] px-4 py-3 space-y-3">
-              <div className="text-xs text-[var(--text-secondary)] rounded-md border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
-                <p>retrieval mode：{response.knowledge.retrievalMode}</p>
-                <p>model tokens：{response.knowledge.queryDiagnostics.modelTokens.join(", ") || "無"}</p>
-                <p>alnum tokens：{response.knowledge.queryDiagnostics.alphaNumTokens.join(", ") || "無"}</p>
-                <p>chinese terms：{response.knowledge.queryDiagnostics.chineseTerms.join(", ") || "無"}</p>
-              </div>
-
-              {response.knowledge.topItems.length === 0 && <p className="text-sm text-[var(--text-muted)]">本次未命中產品清單項目。</p>}
-              {response.knowledge.topItems.map((item, index) => (
-                <div key={`${item.finalCode}-${item.headCode}-${index}`} className="rounded-md border border-[var(--border-default)] bg-[var(--surface-secondary)] p-3">
-                  <p className="text-xs font-semibold text-[var(--brand-primary)] mb-1">
-                    {index + 1}. {item.name} | head {item.headCode} | final {item.finalCode} | score {item.score} | chars {item.charCount}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)] mb-1">matched: {item.matchedTerms.join(", ") || "none"}</p>
-                  <p className="text-xs text-[var(--text-secondary)] mb-1">{item.preview}</p>
-                  <a href={item.productUrl} target="_blank" rel="noreferrer" className="text-xs text-[var(--brand-accent)] hover:underline">
-                    source link
-                  </a>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
+        </aside>
       </main>
     </div>
   );

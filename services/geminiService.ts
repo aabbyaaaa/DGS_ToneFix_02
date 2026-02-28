@@ -79,6 +79,21 @@ function appendRecommendationFooter(content: string, recommendations: ProductRec
   return `${cleaned}\n\n${footer}`;
 }
 
+function normalizeAdviceLeadSpacing(content: string): string {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const leadIndex = lines.findIndex((line) => /^工程師(?:的)?建議如下：$/.test(line.trim()));
+  if (leadIndex < 0) {
+    return content.trim();
+  }
+
+  lines[leadIndex] = "工程師的建議如下：";
+  if (lines[leadIndex + 1] !== undefined && lines[leadIndex + 1].trim() !== "") {
+    lines.splice(leadIndex + 1, 0, "");
+  }
+
+  return lines.join("\n").trim();
+}
+
 function normalizePolishVariants(raw: unknown): PolishedVariant[] {
   const rawVariants = Array.isArray((raw as { variants?: unknown[] } | undefined)?.variants)
     ? ((raw as { variants: unknown[] }).variants as unknown[])
@@ -158,7 +173,7 @@ export function buildRecommendationsFromProductList(items: ScoredProductListItem
 }
 
 export const polishText = async (request: PolishRequest): Promise<PolishResponse> => {
-  const { sourceText, customerName, customerTitle, maxKnowledgeChunks } = request;
+  const { sourceText, maxKnowledgeChunks } = request;
 
   if (sourceText.length > MAX_SOURCE_TEXT_LENGTH) {
     throw new Error(`技術回覆內容最多 ${MAX_SOURCE_TEXT_LENGTH} 字，請縮短後再試。`);
@@ -173,22 +188,30 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
   const topItems = productListResult.items;
   const recommendedProducts = buildRecommendationsFromProductList(topItems);
 
-  const greetingInstruction =
-    customerName || customerTitle
-      ? `Address the customer as "${customerName || ""}${customerTitle || ""}".`
-      : `Use a generic professional greeting (e.g., "您好，感謝您的詢問").`;
-
   const systemInstruction = `
     You are a specialized "Technical Customer Service Polishing Assistant".
-    Convert raw technical notes into polite, professional customer service replies in Traditional Chinese (Taiwan).
+    Your goal is to take raw technical notes from engineers and convert them into polite, professional customer service replies in Traditional Chinese (繁體中文).
 
-    HARD RULES:
-    1. Keep technical terms, model numbers, values, and units unchanged.
-    2. Output exactly 3 variants: concise, standard, formal.
-    3. Use readable paragraphs and bullet points when needed.
-    4. ${greetingInstruction}
-    5. End with a polite closing.
-    6. Do not include product links or recommendation list in the reply body.
+    CRITICAL RULES (Hard Constraints):
+    1. **Term Integrity**: DO NOT change, translate, or remove any technical terms, model numbers (e.g., ABC-1234), values (e.g., 0.22 μm), units, or part numbers. Verify this strictly.
+    2. **Language**: Output MUST be in Traditional Chinese (Taiwan).
+    3. **Formatting & Layout Strategy (Crucial)**:
+      - **Smart Paragraphing**: Content MUST be broken into logical paragraphs using line breaks. Do not produce a single block of text ("wall of text").
+      - **Auto-Bulleting**: REGARDLESS of the tone (Concise, Standard, or Formal), if the content involves technical specifications, step-by-step instructions, multiple distinct issues, or a list of items, YOU MUST use bullet points (•) or numbered lists (1., 2.) to present them clearly.
+    4. **Tone Variance**: You must generate exactly 3 versions in this order:
+      1) **Concise (精簡)**: Direct, efficient. Heavily favor bullet points for quick reading.
+      2) **Standard (標準)**: Balanced, friendly. Use natural paragraphs for explanations and bullet points for specs/steps.
+      3) **Formal (正式)**: Highly respectful, professional. Structured paragraphs, but use lists for technical details to improve clarity (like a professional report).
+    5. **Structure**:
+      - Line 1 must be a natural opening sentence based on the source text context, and include the topic/use case. Do NOT use a fixed template.
+      - Line 2 must be exactly: 「工程師的建議如下：」
+      - Line 3 must be a blank line.
+      - Starting from the next line after Line 2, output technical points immediately as bullets (•) or numbered list.
+      - Do NOT add any extra lead-in sentence after Line 2.
+      - Forbidden phrases after Line 2: 「相關評估如下」, 「具體建議規格如下」, 「技術要點如下」, 「說明如下」.
+      - Do NOT use generic greetings like: 「您好，感謝您的詢問」.
+      - Include the technical content (following the formatting rules above).
+      - End with a polite closing (e.g., "如需補充資訊，歡迎告知").
 
     Return strictly valid JSON:
     {
@@ -245,10 +268,13 @@ export const polishText = async (request: PolishRequest): Promise<PolishResponse
   }
 
   const parsed = JSON.parse(contentString);
-  const variants = normalizePolishVariants(parsed).map((variant) => ({
-    ...variant,
-    content: appendRecommendationFooter(variant.content, recommendedProducts),
-  }));
+  const variants = normalizePolishVariants(parsed).map((variant) => {
+    const normalizedContent = normalizeAdviceLeadSpacing(variant.content);
+    return {
+      ...variant,
+      content: appendRecommendationFooter(normalizedContent, recommendedProducts),
+    };
+  });
 
   return {
     variants,

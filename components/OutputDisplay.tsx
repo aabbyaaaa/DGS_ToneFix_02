@@ -14,11 +14,43 @@ interface SelectionPopupState {
   top: number;
 }
 
+const BULLET_LINE_PATTERN = /^\s*(?:[-•●▪◦]|\d+[.)])\s+/;
+
+export function isBulletLine(text: string): boolean {
+  return BULLET_LINE_PATTERN.test(text.trim());
+}
+
 export function splitVariantParagraphs(content: string): string[] {
-  return content
-    .split(/\n{2,}/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const segments: string[] = [];
+  let textBuffer: string[] = [];
+
+  const flushTextBuffer = () => {
+    const block = textBuffer.join("\n").trim();
+    if (block) {
+      segments.push(block);
+    }
+    textBuffer = [];
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushTextBuffer();
+      return;
+    }
+
+    if (isBulletLine(trimmed)) {
+      flushTextBuffer();
+      segments.push(trimmed);
+      return;
+    }
+
+    textBuffer.push(trimmed);
+  });
+
+  flushTextBuffer();
+  return segments;
 }
 
 export function normalizeForManualMatch(text: string): string {
@@ -170,10 +202,10 @@ export const VariantCard: React.FC<VariantCardProps> = ({ variant, className = "
   return (
     <div
       ref={cardRef}
-      className={`bg-[var(--surface-primary)] rounded-xl theme-panel border border-[var(--border-default)] border-l-[6px] ${borderClass[variant.tone]} overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col h-full ${className}`}
+      className={`bg-[var(--surface-primary)] rounded-xl theme-panel border border-[var(--border-default)] border-l-[6px] ${borderClass[variant.tone]} overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col h-full min-h-0 ${className}`}
       id={`card-${variant.tone}`}
     >
-      <div className="px-4 py-3 border-b border-[var(--border-default)] bg-[var(--surface-primary)] flex justify-between items-center gap-2">
+      <div className="reply-card-header px-4 py-3 border-b border-[var(--border-default)] bg-[var(--surface-primary)] flex justify-between items-center gap-2 sticky top-0 z-[2]">
         <ToneBadge tone={variant.tone} />
         <button
           onClick={handleCopy}
@@ -185,14 +217,14 @@ export const VariantCard: React.FC<VariantCardProps> = ({ variant, className = "
           {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
         </button>
       </div>
-      <div className="p-4 flex-1 flex flex-col">
+      <div className="reply-scroll p-4 flex-1 min-h-0 overflow-y-auto">
         {variant.subject && (
           <div className="mb-3 pb-3 border-b border-[var(--border-default)] border-dashed">
             <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1 font-semibold">建議主旨</p>
             <p className="text-sm font-medium text-[var(--brand-primary)]">{variant.subject}</p>
           </div>
         )}
-        <div className="flex-1 space-y-1" id={`body-${variant.tone}`}>
+        <div className="space-y-1" id={`body-${variant.tone}`}>
           {paragraphs.map((paragraph, index) => {
             const normalizedParagraph = normalizeForManualMatch(paragraph);
             const matchedHighlight = manualHighlightRules.find((rule) =>

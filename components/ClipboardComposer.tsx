@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Tone } from "../types";
-import { Check, Copy, Trash2 } from "lucide-react";
+import { Check, Copy, Trash2, X } from "lucide-react";
 
 export interface ComposerBlock {
   id: string;
@@ -14,6 +14,8 @@ interface ClipboardComposerProps {
   onRemoveBlock: (id: string) => void;
   onUpdateBlock: (id: string, value: string) => void;
   onReorderBlocks: (fromIndex: number, toIndex: number) => void;
+  drawerMode?: boolean;
+  onClose?: () => void;
 }
 
 function toneLabel(tone: Tone): string {
@@ -28,12 +30,55 @@ function toneBadgeClass(tone: Tone): string {
   return "bg-[#8188BC]/15 text-[#868ee2] border-[#8188BC]/35";
 }
 
+interface EditableComposerTextProps {
+  value: string;
+  onCommit: (value: string) => void;
+}
+
+const EditableComposerText: React.FC<EditableComposerTextProps> = ({ value, onCommit }) => {
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (!contentRef.current) return;
+    if (isEditing) return;
+    if (contentRef.current.textContent !== value) {
+      contentRef.current.textContent = value;
+    }
+  }, [isEditing, value]);
+
+  const handleBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    setIsEditing(false);
+    onCommit(event.currentTarget.textContent ?? "");
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const plainText = event.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, plainText);
+  };
+
+  return (
+    <div
+      ref={contentRef}
+      className="clip-item-content"
+      contentEditable
+      suppressContentEditableWarning
+      onFocus={() => setIsEditing(true)}
+      onBlur={handleBlur}
+      onPaste={handlePaste}
+    />
+  );
+};
+
 const ClipboardComposer: React.FC<ClipboardComposerProps> = ({
   blocks,
   onClear,
   onRemoveBlock,
   onUpdateBlock,
   onReorderBlocks,
+  drawerMode = false,
+  onClose,
 }) => {
   const [copied, setCopied] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -55,15 +100,31 @@ const ClipboardComposer: React.FC<ClipboardComposerProps> = ({
   };
 
   return (
-    <div className="bg-[var(--surface-primary)] rounded-xl theme-panel border border-[var(--border-default)] overflow-hidden h-full flex flex-col">
+    <div
+      className={`bg-[var(--surface-primary)] overflow-hidden h-full flex flex-col ${
+        drawerMode
+          ? "rounded-none border-0"
+          : "rounded-xl theme-panel border border-[var(--border-default)]"
+      }`}
+    >
       <div className="p-4 border-b border-[var(--border-default)] bg-[var(--brand-soft)] flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-[var(--brand-primary)]">剪貼區（Clipboard Composer）</h2>
+          <h2 className="font-semibold text-[var(--brand-primary)]">剪貼區</h2>
           <span className="text-xs rounded-full px-2 py-0.5 border border-[var(--border-default)] text-[var(--text-muted)]">
             {blocks.length}
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 rounded-md border border-[var(--border-default)] text-[var(--text-muted)] hover:text-[var(--brand-primary)] flex items-center justify-center"
+              title="關閉"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onClear}
@@ -129,14 +190,7 @@ const ClipboardComposer: React.FC<ClipboardComposerProps> = ({
                     &#10005;
                   </button>
                 </div>
-                <div
-                  className="clip-item-content"
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(event) => onUpdateBlock(block.id, event.currentTarget.textContent ?? "")}
-                >
-                  {block.text}
-                </div>
+                <EditableComposerText value={block.text} onCommit={(value) => onUpdateBlock(block.id, value)} />
               </div>
             ))
           )}

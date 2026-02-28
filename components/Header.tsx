@@ -35,7 +35,9 @@ const Header: React.FC<HeaderProps> = ({ themeMode, resolvedTheme, onThemeModeCh
                 v1.2
               </span>
             </h1>
-            <p className="text-xs text-[var(--text-muted)] hidden sm:block">僅使用產品清單檢索與推薦（最終貨號網址）</p>
+            <p className="text-xs text-[var(--text-muted)] hidden sm:block">
+              支援 OCR 辨識、三種語氣回覆、產品清單檢索推薦（最終貨號網址）、段落/框選加入剪貼區、拖曳排序與即時編輯
+            </p>
           </div>
         </div>
 
